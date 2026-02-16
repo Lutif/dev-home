@@ -1,0 +1,83 @@
+name: Build and Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0, v1.0.1, etc.
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update manifest version
+        run: |
+          cd home
+          sed -i "s/\"version\": \".*\"/\"version\": \"${{ steps.get_version.outputs.VERSION }}\"/" manifest.json
+
+      - name: Create extension package
+        run: |
+          cd home
+          zip -r ../home-v${{ steps.get_version.outputs.VERSION }}.zip . \
+            -x "*.git*" \
+            -x "*node_modules/*" \
+            -x "*.DS_Store" \
+            -x "*.md" \
+            -x "package*.json"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: HOME v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## HOME v${{ steps.get_version.outputs.VERSION }}
+
+            ### Installation Instructions
+
+            1. Download `home-v${{ steps.get_version.outputs.VERSION }}.zip` below
+            2. Extract the ZIP file to a folder on your computer
+            3. Open Chrome and navigate to `chrome://extensions/`
+            4. Enable "Developer mode" (toggle in top right)
+            5. Click "Load unpacked"
+            6. Select the extracted `home` folder
+            7. The extension should now appear in your Chrome toolbar!
+
+            ### What's Included
+
+            - GitHub PR tracking
+            - Slack activity monitoring
+            - Google Calendar integration
+            - Workspace management with custom themes
+            - Folder organization with drag & drop
+
+            ### Configuration
+
+            - Click the extension icon in Chrome toolbar
+            - Go to Settings (gear icon)
+            - Configure your Slack Workspace ID (find it in your Slack URL: app.slack.com/client/**T01ABC23DEF**/...)
+            - Set your GitHub username for PR filtering
+
+            For issues or questions, please open an issue on GitHub.
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./home-v${{ steps.get_version.outputs.VERSION }}.zip
+          asset_name: home-v${{ steps.get_version.outputs.VERSION }}.zip
+          asset_content_type: application/zip
