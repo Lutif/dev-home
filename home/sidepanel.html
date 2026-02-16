@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HOME</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header__row">
+      <div class="header__title-wrap">
+        <h1 class="header__title">
+          <span class="header__icon header__icon-emoji" id="currentSpaceEmoji" aria-hidden="true"></span>
+          <span class="header__title-name" id="currentSpaceTitleName">Current Space</span>
+        </h1>
+        <button type="button" class="header__edit-btn" id="editCurrentSpace" title="Edit space name and emoji" aria-label="Edit space">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <div class="header__edit-form" id="editSpaceForm" hidden>
+          <div class="header__edit-form-row">
+            <div class="emoji-picker-trigger-wrap">
+              <button type="button" class="emoji-picker-trigger" id="editSpaceEmojiBtn" title="Choose emoji" aria-label="Choose emoji">
+                <span class="emoji-picker-trigger__char" id="editSpaceEmojiDisplay">😀</span>
+              </button>
+              <input type="hidden" id="editSpaceEmoji" value="">
+              <div class="emoji-picker" id="editSpaceEmojiPicker" hidden role="listbox"></div>
+            </div>
+            <input type="text" class="input" id="editSpaceName" placeholder="Space name..." maxlength="40">
+          </div>
+          <div class="header__edit-form-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="editSpaceSectionGithub" value="github" checked>
+              <span>GitHub PRs</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="editSpaceSectionSlack" value="slack" checked>
+              <span>Slack Activity</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="editSpaceSectionCalendar" value="calendar" checked>
+              <span>Calendar Events</span>
+            </label>
+          </div>
+          <div class="header__edit-form-divider"></div>
+          <div class="header__edit-form-row header__edit-form-row--theme">
+            <div class="theme-color-picker">
+              <label class="theme-color-picker__label">Primary</label>
+              <input type="color" class="theme-color-picker__input" id="editSpaceThemePrimary" value="#6366f1">
+            </div>
+            <div class="theme-color-picker">
+              <label class="theme-color-picker__label">Background</label>
+              <input type="color" class="theme-color-picker__input" id="editSpaceThemeBackground" value="#0f1117">
+            </div>
+            <div class="theme-color-picker">
+              <label class="theme-color-picker__label">Surface</label>
+              <input type="color" class="theme-color-picker__input" id="editSpaceThemeSurface" value="#1a1d27">
+            </div>
+            <div class="theme-color-picker">
+              <label class="theme-color-picker__label">Accent</label>
+              <input type="color" class="theme-color-picker__input" id="editSpaceThemeAccent" value="#818cf8">
+            </div>
+          </div>
+          <div class="theme-presets">
+            <button type="button" class="theme-preset" data-preset="default" title="Default Blue">
+              <span class="theme-preset__dot" style="background: #6366f1"></span>
+              <span class="theme-preset__dot" style="background: #0f1117"></span>
+              <span class="theme-preset__dot" style="background: #1a1d27"></span>
+              <span class="theme-preset__dot" style="background: #818cf8"></span>
+            </button>
+            <button type="button" class="theme-preset" data-preset="ocean" title="Ocean">
+              <span class="theme-preset__dot" style="background: #0ea5e9"></span>
+              <span class="theme-preset__dot" style="background: #0c1821"></span>
+              <span class="theme-preset__dot" style="background: #1a2734"></span>
+              <span class="theme-preset__dot" style="background: #38bdf8"></span>
+            </button>
+            <button type="button" class="theme-preset" data-preset="forest" title="Forest">
+              <span class="theme-preset__dot" style="background: #10b981"></span>
+              <span class="theme-preset__dot" style="background: #0a1410"></span>
+              <span class="theme-preset__dot" style="background: #1a2821"></span>
+              <span class="theme-preset__dot" style="background: #34d399"></span>
+            </button>
+            <button type="button" class="theme-preset" data-preset="sunset" title="Sunset">
+              <span class="theme-preset__dot" style="background: #f59e0b"></span>
+              <span class="theme-preset__dot" style="background: #1a0f0a"></span>
+              <span class="theme-preset__dot" style="background: #2b1e15"></span>
+              <span class="theme-preset__dot" style="background: #fbbf24"></span>
+            </button>
+            <button type="button" class="theme-preset" data-preset="rose" title="Rose">
+              <span class="theme-preset__dot" style="background: #f43f5e"></span>
+              <span class="theme-preset__dot" style="background: #1a0a0f"></span>
+              <span class="theme-preset__dot" style="background: #2b1520"></span>
+              <span class="theme-preset__dot" style="background: #fb7185"></span>
+            </button>
+            <button type="button" class="theme-preset" data-preset="purple" title="Purple">
+              <span class="theme-preset__dot" style="background: #a855f7"></span>
+              <span class="theme-preset__dot" style="background: #150a1a"></span>
+              <span class="theme-preset__dot" style="background: #261a2b"></span>
+              <span class="theme-preset__dot" style="background: #c084fc"></span>
+            </button>
+          </div>
+          <div class="header__edit-form-actions">
+            <button type="button" class="btn btn--primary btn--sm" id="editSpaceSave">Save</button>
+            <button type="button" class="btn btn--ghost btn--sm" id="editSpaceCancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div class="header__pills" id="spacesEmojiRow"></div>
+      <div class="header__search">
+        <input type="text" class="command-bar__input" id="commandBarInput" placeholder="Search spaces and tabs..." autocomplete="off">
+        <div class="command-bar__results" id="commandBarResults" hidden></div>
+      </div>
+      <div class="header__spaces">
+        <button type="button" class="btn btn--ghost btn--sm header__save" id="saveAsNewSpace" title="Save as new named space">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 9 15 9"/>
+          </svg>
+          Save as new
+        </button>
+      </div>
+      <div class="header__actions">
+        <button class="header__refresh" id="refreshAll" title="Refresh all">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Spaces panel (current space: pinned + tabs) -->
+  <div class="spaces-panel" data-section="spaces">
+    <div class="spaces-panel__body">
+      <div id="currentSpaceBlock" class="spaces-panel__live">
+        <div class="space-section space-section--pinned">
+          <div class="space-section__label-row">
+            <span class="space-section__label">Pinned</span>
+            <button type="button" class="btn btn--ghost btn--sm" id="newPinnedFolderBtn" title="Create folder">+ Folder</button>
+          </div>
+          <div id="pinnedEntriesList"></div>
+          <div id="pinnedFoldersList"></div>
+        </div>
+        <div class="space-section space-section--tabs">
+          <div class="space-section__label-row">
+            <span class="space-section__label">Tabs</span>
+            <button type="button" class="btn btn--ghost btn--sm" id="newTabGroupBtn" title="Create tab group">+ Folder</button>
+            <button type="button" class="btn btn--ghost btn--sm space-new-tab" id="newTabBtn">+ New tab</button>
+          </div>
+          <div id="liveTabsList"></div>
+          <div id="liveFoldersList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="content">
+    <!-- ═══════ GitHub PRs Section ═══════ -->
+    <section class="section section--expanded" data-section="github">
+      <header class="section__header">
+        <button class="section__toggle" aria-label="Toggle section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <h2 class="section__title">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          Pull Requests
+          <span class="section__count" id="githubCount" hidden></span>
+        </h2>
+        <button class="btn btn--ghost btn--sm refresh-btn" data-refresh="github">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </header>
+      <div class="section__content">
+        <div class="service-status" id="githubStatus"></div>
+        <div id="githubList">
+          <div class="loading">
+            <span class="loading__dot"></span>
+            <span class="loading__dot"></span>
+            <span class="loading__dot"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════ Slack Section ═══════ -->
+    <section class="section section--expanded" data-section="slack">
+      <header class="section__header">
+        <button class="section__toggle" aria-label="Toggle section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <h2 class="section__title">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.163 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.163 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.163 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.163a2.528 2.528 0 0 1-2.522 2.523h-6.315z"/>
+          </svg>
+          Mentions & DMs
+          <span class="section__count" id="slackCount" hidden></span>
+        </h2>
+        <button class="btn btn--ghost btn--sm refresh-btn" data-refresh="slack">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </header>
+      <div class="section__content">
+        <div class="service-status" id="slackStatus"></div>
+        <div id="slackList">
+          <div class="loading">
+            <span class="loading__dot"></span>
+            <span class="loading__dot"></span>
+            <span class="loading__dot"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════ Calendar Section ═══════ -->
+    <section class="section section--expanded" data-section="calendar">
+      <header class="section__header">
+        <button class="section__toggle" aria-label="Toggle section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <h2 class="section__title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          Today's Events
+          <span class="section__count" id="calendarCount" hidden></span>
+        </h2>
+        <button class="btn btn--ghost btn--sm refresh-btn" data-refresh="calendar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </header>
+      <div class="section__content">
+        <div class="service-status" id="calendarStatus"></div>
+        <div id="calendarList">
+          <div class="loading">
+            <span class="loading__dot"></span>
+            <span class="loading__dot"></span>
+            <span class="loading__dot"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════ Settings Section ═══════ -->
+    <section class="section section--collapsed" data-section="settings">
+      <header class="section__header">
+        <button class="section__toggle" aria-label="Toggle section">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <h2 class="section__title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
+          </svg>
+          Settings
+        </h2>
+      </header>
+      <div class="section__content">
+        <div class="settings-group">
+          <label class="settings-label">
+            Slack Workspace ID
+            <small>Find it in your Slack URL: app.slack.com/client/<strong>T01ABC23DEF</strong>/...</small>
+          </label>
+          <div class="settings-input-group">
+            <input type="text" class="input" id="slackWorkspaceId" placeholder="T01ABC23DEF" maxlength="20">
+            <button type="button" class="btn btn--primary btn--sm" id="saveSlackWorkspaceId">Save</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Split View — HOME</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2e3a;
+      --text: #e4e4e7;
+      --primary: #6366f1;
+    }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 13px; height: 100vh; display: flex; flex-direction: column; }
+    .toolbar { display: flex; gap: 8px; padding: 8px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .toolbar input { flex: 1; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; }
+    .toolbar input:focus { outline: none; border-color: var(--primary); }
+    .toolbar button { padding: 8px 12px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .toolbar button:hover { opacity: 0.9; }
+    .panes { flex: 1; display: flex; min-height: 0; }
+    .pane { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+    .pane:last-child { border-right: none; }
+    .pane iframe { flex: 1; width: 100%; border: none; background: #fff; }
+    .pane .error { padding: 12px; color: #ef4444; font-size: 11px; background: rgba(239,68,68,0.1); }
+    .note { padding: 8px 12px; background: var(--surface); color: #71717a; font-size: 11px; border-bottom: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="note">Note: Many sites block embedding (X-Frame-Options). Use with sites that allow it (e.g. docs, wikis).</div>
+  <div class="toolbar">
+    <input type="url" id="url1" placeholder="Left URL (e.g. https://...)" />
+    <input type="url" id="url2" placeholder="Right URL (e.g. https://...)" />
+    <button id="go">Split view</button>
+  </div>
+  <div class="panes">
+    <div class="pane">
+      <div class="error" id="err1" hidden></div>
+      <iframe id="frame1" title="Left"></iframe>
+    </div>
+    <div class="pane">
+      <div class="error" id="err2" hidden></div>
+      <iframe id="frame2" title="Right"></iframe>
+    </div>
+  </div>
+  <script>
+    const url1 = document.getElementById('url1');
+    const url2 = document.getElementById('url2');
+    const frame1 = document.getElementById('frame1');
+    const frame2 = document.getElementById('frame2');
+    const err1 = document.getElementById('err1');
+    const err2 = document.getElementById('err2');
+    document.getElementById('go').addEventListener('click', load);
+    url1.addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+    url2.addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+
+    function setFrame(frame, errEl, url) {
+      errEl.hidden = true;
+      errEl.textContent = '';
+      if (!url || !url.startsWith('http')) {
+        frame.srcdoc = '';
+        return;
+      }
+      frame.onerror = () => { errEl.hidden = false; errEl.textContent = 'This site cannot be embedded (blocked by X-Frame-Options).'; };
+      frame.src = url;
+    }
+
+    function load() {
+      const u1 = url1.value.trim();
+      const u2 = url2.value.trim();
+      setFrame(frame1, err1, u1);
+      setFrame(frame2, err2, u2);
+    }
+  </script>
+</body>
+</html>
