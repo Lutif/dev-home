@@ -1025,8 +1025,12 @@ details.theme-custom[open] .theme-custom__toggle::before {
 .space-empty {
   font-size: 11px;
   color: var(--text-light);
-  padding: 6px 0;
+  padding: 8px 10px;
   font-style: italic;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  background: var(--surface);
 }
 
 .space-entry {
@@ -1083,7 +1087,17 @@ details.theme-custom[open] .theme-custom__toggle::before {
 }
 
 .space-folder {
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.space-folder:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-xs);
 }
 
 .space-folder__header {
@@ -1091,13 +1105,14 @@ details.theme-custom[open] .theme-custom__toggle::before {
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 5px 8px;
+  padding: 6px 10px;
   border: none;
-  background: transparent;
+  background: var(--bg-deep);
   color: var(--text);
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   transition: background var(--transition);
   text-align: left;
   font-family: inherit;
@@ -1119,8 +1134,9 @@ details.theme-custom[open] .theme-custom__toggle::before {
 
 .space-folder__content {
   overflow: hidden;
-  max-height: 500px;
-  transition: max-height 200ms ease;
+  max-height: 600px;
+  transition: max-height 220ms ease;
+  padding: 4px 0;
 }
 
 .space-folder--collapsed .space-folder__content {
@@ -1131,14 +1147,29 @@ details.theme-custom[open] .theme-custom__toggle::before {
 }
 
 .space-folder__content .space-entry {
-  padding-left: 20px;
+  padding-left: 22px;
+  border-radius: 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.space-folder__content .space-entry:last-child {
+  border-bottom: none;
+}
+
+.space-folder__content .space-entry:hover {
+  background: var(--surface-hover);
 }
 
 .space-folder__content .space-empty {
-  padding: 8px 12px 8px 32px;
+  padding: 10px 12px;
   color: var(--text-light);
-  font-size: 12px;
+  font-size: 11px;
   font-style: italic;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  margin: 6px 8px;
+  text-align: center;
 }
 
 .space-folder__name {
@@ -1193,12 +1224,19 @@ details.theme-custom[open] .theme-custom__toggle::before {
 .drop-zone-active {
   background: var(--primary-soft) !important;
   outline: 2px dashed var(--primary);
-  outline-offset: 2px;
+  outline-offset: -2px;
   border-radius: var(--radius-sm);
 }
 
+/* Folder drop zone active — highlight the whole folder */
+.space-folder__content.drop-zone-active {
+  outline-offset: 0;
+  border-radius: 0;
+  padding-bottom: 4px;
+}
+
 [data-drop-zone] {
-  min-height: 40px;
+  min-height: 36px;
   transition: background var(--transition), outline var(--transition);
 }
 

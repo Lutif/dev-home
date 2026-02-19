@@ -753,13 +753,16 @@ async function handleDrop(e) {
 
   if (!draggedData) return;
 
+  // Snapshot draggedData immediately — dragend fires concurrently and nulls it
+  const data = { ...draggedData };
+
   const dropZoneType = dropZone.dataset.dropZone;
   const folderIndex = dropZone.dataset.folderIndex;
   const groupId = dropZone.dataset.groupId;
 
   // Handle different drop scenarios
-  if (draggedData.type === 'pinned-entry') {
-    const entryUrl = draggedData.url;
+  if (data.type === 'pinned-entry') {
+    const entryUrl = data.url;
 
     if (dropZoneType === 'folder') {
       // Moving pinned entry to a folder
@@ -772,20 +775,22 @@ async function handleDrop(e) {
       await unpinEntry(entryUrl);
       // TODO: If dropping on tab group, add to group
     }
-  } else if (draggedData.type === 'live-tab') {
-    const tabId = parseInt(draggedData.tabId, 10);
+  } else if (data.type === 'live-tab') {
+    const tabId = parseInt(data.tabId, 10);
 
     if (dropZoneType === 'pinned-section' || dropZoneType === 'folder') {
-      // Pinning tab
-      await pinTab(tabId);
       if (dropZoneType === 'folder') {
-        // After pinning, move to folder by URL
-        await moveEntryToFolder(draggedData.url, parseInt(folderIndex, 10));
+        // Pin without re-rendering, then atomically move into folder
+        await pinTab(tabId, { skipRerender: true });
+        await moveEntryToFolder(data.url, parseInt(folderIndex, 10));
+        // moveEntryToFolder handles loadCurrentSpace + schedulePersistCurrentSpace
+      } else {
+        await pinTab(tabId);
       }
     } else if (dropZoneType === 'tabgroup' && chrome.tabGroups) {
       // Moving tab to a different group
       const targetGroupId = parseInt(groupId, 10);
-      const currentGroupId = draggedData.groupId ? parseInt(draggedData.groupId, 10) : null;
+      const currentGroupId = data.groupId ? parseInt(data.groupId, 10) : null;
 
       if (targetGroupId !== currentGroupId) {
         try {
@@ -798,7 +803,7 @@ async function handleDrop(e) {
       }
     } else if (dropZoneType === 'tabs-section') {
       // Ungrouping tab (moving to main tabs section)
-      if (draggedData.groupId) {
+      if (data.groupId) {
         try {
           await chrome.tabs.ungroup(tabId);
           loadCurrentSpace();
@@ -811,7 +816,7 @@ async function handleDrop(e) {
   }
 }
 
-async function pinTab(tabId) {
+async function pinTab(tabId, { skipRerender = false } = {}) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab || !tab.url || !currentSpaceId) return;
   const { spaces = {} } = await chrome.storage.local.get('spaces');
@@ -822,8 +827,10 @@ async function pinTab(tabId) {
   space.pinnedEntries.push({ url: tab.url, title: tab.title || tab.url, favIconUrl: tab.favIconUrl || '' });
   await chrome.storage.local.set({ spaces });
   try { await chrome.tabs.update(tabId, { pinned: true }); } catch (_) {}
-  loadCurrentSpace();
-  schedulePersistCurrentSpace();
+  if (!skipRerender) {
+    loadCurrentSpace();
+    schedulePersistCurrentSpace();
+  }
 }
 
 async function unpinEntry(entryIndexOrUrl) {
