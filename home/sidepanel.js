@@ -21,6 +21,10 @@ $$('.section__header').forEach(header => {
 });
 
 // ────── Refresh All ──────
+$('#syncSpaceBtn').addEventListener('click', async () => {
+  await persistCurrentSpaceSnapshot({ showFeedback: true });
+});
+
 $('#refreshAll').addEventListener('click', () => {
   const btn = $('#refreshAll');
   btn.classList.add('spinning');
@@ -476,14 +480,39 @@ async function getGroupCollapsed(groupId) {
 }
 
 /** Build snapshot from current window and space, then persist to spaces and workspaces (if saved). */
-async function persistCurrentSpaceSnapshot() {
+function updateSyncLabel(state) {
+  const btn = $('#syncSpaceBtn');
+  const label = $('#syncLabel');
+  if (!btn || !label) return;
+  if (state === 'syncing') {
+    btn.classList.add('syncing');
+    btn.classList.remove('saved');
+    label.textContent = 'Syncing…';
+  } else if (state === 'saved') {
+    btn.classList.remove('syncing');
+    btn.classList.add('saved');
+    const now = new Date();
+    label.textContent = `Saved ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+    setTimeout(() => {
+      btn.classList.remove('saved');
+      label.textContent = 'Sync';
+    }, 3000);
+  } else {
+    btn.classList.remove('syncing', 'saved');
+    label.textContent = 'Sync';
+  }
+}
+
+async function persistCurrentSpaceSnapshot({ showFeedback = false } = {}) {
   if (currentSpaceId == null || currentWindowId == null) return;
+  if (showFeedback) updateSyncLabel('syncing');
   const { space } = await getOrCreateCurrentSpace();
-  if (!space) return;
+  if (!space) { if (showFeedback) updateSyncLabel('idle'); return; }
   let tabs;
   try {
     tabs = await chrome.tabs.query({ windowId: currentWindowId });
   } catch (_) {
+    if (showFeedback) updateSyncLabel('idle');
     return;
   }
   const pinnedUrls = new Set((space.pinnedEntries || []).map(e => e.url));
@@ -526,11 +555,14 @@ async function persistCurrentSpaceSnapshot() {
       emoji: (currentSpaceData && currentSpaceData.emoji) !== undefined ? currentSpaceData.emoji : workspaces[wsIndex].emoji,
       pinnedTabs: (space.pinnedEntries || []).slice(),
       tabs: unpinnedTabs,
-      folders
+      folders,
+      lastSyncedAt: new Date().toISOString()
     };
     await chrome.storage.local.set({ workspaces, lastActiveWorkspaceId: currentSpaceId });
     loadSavedSpaces();
   }
+
+  if (showFeedback) updateSyncLabel('saved');
 }
 
 function setGroupCollapsed(groupId, collapsed) {

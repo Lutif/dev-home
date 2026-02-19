@@ -467,6 +467,30 @@ details.theme-custom[open] .theme-custom__toggle::before {
   flex-shrink: 0;
 }
 
+.header__sync {
+  flex-shrink: 0;
+  gap: 4px;
+  color: var(--text-muted);
+  transition: color var(--transition), background var(--transition);
+}
+
+.header__sync:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.header__sync.syncing .sync-icon {
+  animation: spin 0.7s linear infinite;
+}
+
+.header__sync.saved {
+  color: var(--green);
+}
+
+.sync-label {
+  font-size: 11px;
+}
+
 .header__actions {
   display: flex;
   align-items: center;
