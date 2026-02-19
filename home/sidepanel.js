@@ -1366,7 +1366,9 @@ async function loadSavedSpaces() {
       spacesEmojiRow.hidden = false;
       spacesEmojiRow.innerHTML = workspaces.map(ws => {
         const emojiDisplay = ws.emoji || '◇';
-        return `<button type="button" class="space-pill ${ws.id === currentSpaceId ? 'space-pill--active' : ''}" data-id="${escapeHtml(ws.id)}" title="${escapeHtml(ws.name)}">${escapeHtml(emojiDisplay)}</button>`;
+        const tabCount = (ws.pinnedTabs || []).length + (ws.tabs || []).length;
+        const badgeHtml = tabCount > 0 ? `<span class="space-pill__count">${tabCount}</span>` : '';
+        return `<button type="button" class="space-pill ${ws.id === currentSpaceId ? 'space-pill--active' : ''}" data-id="${escapeHtml(ws.id)}" title="${escapeHtml(ws.name)} · ${tabCount} tab${tabCount !== 1 ? 's' : ''}">${escapeHtml(emojiDisplay)}${badgeHtml}</button>`;
       }).join('');
     }
   }
