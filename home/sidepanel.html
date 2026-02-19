@@ -126,31 +126,29 @@
           </div>
         </div>
       </div>
-      <div class="header__pills" id="spacesEmojiRow"></div>
+    </div>
+    <div class="header__toolbar">
       <div class="header__search">
         <input type="text" class="command-bar__input" id="commandBarInput" placeholder="Search spaces and tabs..." autocomplete="off">
         <div class="command-bar__results" id="commandBarResults" hidden></div>
       </div>
-      <div class="header__spaces">
-        <button type="button" class="btn btn--ghost btn--sm header__save" id="saveAsNewSpace" title="Save as new named space">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-            <polyline points="17 21 17 13 7 13 7 21"/>
-            <polyline points="7 3 7 9 15 9"/>
-          </svg>
-          Save as new
-        </button>
-      </div>
-      <div class="header__actions">
-        <button class="header__refresh" id="refreshAll" title="Refresh all">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <polyline points="23 4 23 10 17 10"/>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-        </button>
-      </div>
+      <button type="button" class="btn btn--ghost btn--sm header__save" id="saveAsNewSpace" title="Save as new named space">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 9 15 9"/>
+        </svg>
+        Save as new
+      </button>
+      <button class="header__refresh" id="refreshAll" title="Refresh all">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
     </div>
   </header>
+  <div class="spaces-chip-bar" id="spacesEmojiRow"></div>
 
   <!-- Spaces panel (current space: pinned + tabs) -->
   <div class="spaces-panel" data-section="spaces">

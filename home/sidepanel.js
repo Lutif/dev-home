@@ -217,7 +217,7 @@ function normalizeSpace(space) {
   return {
     id: space.id,
     name: space.name || 'Unnamed',
-    emoji: typeof space.emoji === 'string' ? space.emoji.trim().slice(0, 4) : '',
+    emoji: typeof space.emoji === 'string' ? [...space.emoji.trim()].slice(0, 2).join('') : '',
     pinnedEntries: Array.isArray(space.pinnedEntries) ? space.pinnedEntries : [],
     pinnedFolders: Array.isArray(space.pinnedFolders) ? space.pinnedFolders : [],
     sections: Array.isArray(space.sections) ? space.sections : ['github', 'slack', 'calendar'], // default: all sections
@@ -1178,7 +1178,7 @@ $$('.theme-preset').forEach(btn => {
 function normalizeWorkspace(ws) {
   return {
     ...ws,
-    emoji: typeof ws.emoji === 'string' ? ws.emoji.trim().slice(0, 4) : '',
+    emoji: typeof ws.emoji === 'string' ? [...ws.emoji.trim()].slice(0, 2).join('') : '',
     pinnedTabs: Array.isArray(ws.pinnedTabs) ? ws.pinnedTabs : [],
     tabs: Array.isArray(ws.tabs) ? ws.tabs : [],
     folders: Array.isArray(ws.folders) ? ws.folders : [],
@@ -1364,21 +1364,71 @@ async function loadSavedSpaces() {
       spacesEmojiRow.hidden = true;
     } else {
       spacesEmojiRow.hidden = false;
-      spacesEmojiRow.innerHTML = workspaces.map(ws => {
-        const emojiDisplay = ws.emoji || '◇';
+      spacesEmojiRow.innerHTML = '';
+      workspaces.forEach(ws => {
+        const hasEmoji = ws.emoji && ws.emoji.trim().length > 0;
         const tabCount = (ws.pinnedTabs || []).length + (ws.tabs || []).length;
-        const badgeHtml = tabCount > 0 ? `<span class="space-pill__count">${tabCount}</span>` : '';
-        return `<button type="button" class="space-pill ${ws.id === currentSpaceId ? 'space-pill--active' : ''}" data-id="${escapeHtml(ws.id)}" title="${escapeHtml(ws.name)} · ${tabCount} tab${tabCount !== 1 ? 's' : ''}">${escapeHtml(emojiDisplay)}${badgeHtml}</button>`;
-      }).join('');
+        const isActive = ws.id === currentSpaceId;
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = `space-chip${isActive ? ' space-chip--active' : ''}`;
+        chip.dataset.id = ws.id;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'space-chip__name';
+        nameSpan.textContent = ws.name;
+
+        if (hasEmoji) {
+          const emojiSpan = document.createElement('span');
+          emojiSpan.className = 'space-chip__emoji';
+          emojiSpan.setAttribute('aria-hidden', 'true');
+          emojiSpan.textContent = ws.emoji;
+          chip.appendChild(emojiSpan);
+        }
+        chip.appendChild(nameSpan);
+
+        if (tabCount > 0) {
+          const countSpan = document.createElement('span');
+          countSpan.className = 'space-chip__count';
+          countSpan.textContent = tabCount;
+          chip.appendChild(countSpan);
+        }
+
+        chip.insertAdjacentHTML('beforeend', `
+          <span class="space-chip__actions">
+            <span class="space-chip__action" data-chip-action="open" title="Open in new window">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </span>
+            <span class="space-chip__action space-chip__action--danger" data-chip-action="delete" title="Delete space">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </span>
+          </span>
+        `);
+
+        spacesEmojiRow.appendChild(chip);
+      });
     }
   }
 
   if (workspaces.length === 0) return;
 
-  // Space pill: left-click = switch, right-click = menu (New window, Delete)
+  // Space chips: left-click = switch, inline action buttons, right-click = full menu
   if (spacesEmojiRow) {
-    spacesEmojiRow.querySelectorAll('.space-pill').forEach(btn => {
+    spacesEmojiRow.querySelectorAll('.space-chip').forEach(btn => {
       btn.addEventListener('click', async (e) => {
+        const action = e.target.closest('[data-chip-action]');
+        if (action) {
+          e.stopPropagation();
+          const ws = workspaces.find(w => w.id === btn.dataset.id);
+          if (!ws) return;
+          if (action.dataset.chipAction === 'open') {
+            await restoreSavedSpaceFromId(ws.id, true);
+          } else if (action.dataset.chipAction === 'delete') {
+            if (!confirm(`Delete space "${ws.name}"? This cannot be undone.`)) return;
+            await deleteSpace(ws.id);
+          }
+          return;
+        }
         if (e.button !== 0) return;
         const ws = workspaces.find(w => w.id === btn.dataset.id);
         if (ws) await switchToSpace(ws);
@@ -1401,6 +1451,9 @@ function showSpacePillMenu(x, y, ws) {
   menu.className = 'space-pill-menu';
   menu.innerHTML = `
     <button type="button" class="space-pill-menu__item" data-action="new-window">Open in new window</button>
+    <button type="button" class="space-pill-menu__item" data-action="duplicate">Duplicate</button>
+    <button type="button" class="space-pill-menu__item" data-action="rename">Rename</button>
+    <div class="space-pill-menu__divider"></div>
     <button type="button" class="space-pill-menu__item space-pill-menu__item--danger" data-action="delete">Delete</button>
   `;
   menu.style.position = 'fixed';
@@ -1420,15 +1473,56 @@ function showSpacePillMenu(x, y, ws) {
     close();
     await restoreSavedSpaceFromId(ws.id, true);
   });
+  menu.querySelector('[data-action="duplicate"]').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    close();
+    await duplicateSpace(ws);
+  });
+  menu.querySelector('[data-action="rename"]').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    close();
+    const raw = prompt('Rename space:', ws.name);
+    if (!raw || !raw.trim()) return;
+    const { emoji, name } = parseEmojiName(raw.trim());
+    const { workspaces = [], spaces = {} } = await chrome.storage.local.get(['workspaces', 'spaces']);
+    const wsIdx = workspaces.findIndex(w => w.id === ws.id);
+    if (wsIdx !== -1) {
+      workspaces[wsIdx].name = name || workspaces[wsIdx].name;
+      if (emoji) workspaces[wsIdx].emoji = emoji;
+    }
+    if (spaces[ws.id]) {
+      spaces[ws.id].name = name || spaces[ws.id].name;
+      if (emoji) spaces[ws.id].emoji = emoji;
+    }
+    await chrome.storage.local.set({ workspaces, spaces });
+    loadSavedSpaces();
+    if (ws.id === currentSpaceId) loadCurrentSpace();
+  });
   menu.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
     e.stopPropagation();
     close();
-
-    // Confirm deletion
     if (!confirm(`Delete space "${ws.name}"? This cannot be undone.`)) return;
-
     await deleteSpace(ws.id);
   });
+}
+
+async function duplicateSpace(ws) {
+  const { workspaces = [] } = await chrome.storage.local.get('workspaces');
+  const copy = JSON.parse(JSON.stringify(ws));
+  copy.id = 'saved_' + Date.now();
+  copy.name = ws.name + ' (copy)';
+  copy.createdAt = new Date().toISOString();
+  workspaces.push(copy);
+  await chrome.storage.local.set({ workspaces });
+  loadSavedSpaces();
+}
+
+function parseEmojiName(input) {
+  const emojiMatch = input.match(/^(\p{Extended_Pictographic}[\uFE0F\u20D0-\u20FF]?\s*)/u);
+  if (emojiMatch) {
+    return { emoji: emojiMatch[1].trim(), name: input.slice(emojiMatch[1].length).trim() };
+  }
+  return { emoji: '', name: input };
 }
 
 async function restoreSavedSpaceFromId(workspaceId, inNewWindow) {

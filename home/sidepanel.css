@@ -437,22 +437,10 @@ details.theme-custom[open] .theme-custom__toggle::before {
 }
 
 .header__spaces {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
+  display: none;
 }
 
 .header__pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-
-.header__pills:empty,
-.header__pills[hidden] {
   display: none;
 }
 
@@ -486,11 +474,18 @@ details.theme-custom[open] .theme-custom__toggle::before {
 }
 
 /* Search in header */
+.header__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
 .header__search {
   position: relative;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border-light);
-  background: var(--surface);
+  flex: 1;
+  min-width: 0;
 }
 
 .header__search .command-bar__input {
@@ -498,8 +493,8 @@ details.theme-custom[open] .theme-custom__toggle::before {
 }
 
 .header__search .command-bar__results {
-  left: 14px;
-  right: 14px;
+  left: 0;
+  right: 0;
   top: 100%;
   margin-top: 4px;
 }
@@ -1207,74 +1202,124 @@ details.theme-custom[open] .theme-custom__toggle::before {
   transition: background var(--transition), outline var(--transition);
 }
 
-/* Space pills */
-.spaces-emoji-row {
+/* Space chip bar — sits between header and spaces panel */
+.spaces-chip-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
-  margin-bottom: 10px;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 7px 14px 8px;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-deep);
 }
 
-.spaces-emoji-row:empty,
-.spaces-emoji-row[hidden] {
+.spaces-chip-bar::-webkit-scrollbar { display: none; }
+
+.spaces-chip-bar:empty,
+.spaces-chip-bar[hidden] {
   display: none;
 }
 
-.space-pill {
-  position: relative;
-  width: 36px;
-  height: 36px;
+/* Named space chips */
+.space-chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  line-height: 1;
+  gap: 5px;
+  padding: 4px 8px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 20px;
   background: var(--surface-raised);
   color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all var(--transition);
+  white-space: nowrap;
+  flex-shrink: 0;
   box-shadow: var(--shadow-xs);
+  font-family: inherit;
 }
 
-.space-pill:hover {
+.space-chip:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
   box-shadow: var(--shadow-sm);
 }
 
-.space-pill--active {
+.space-chip--active {
   border-color: var(--primary);
   background: var(--primary);
   color: #fff;
   box-shadow: var(--shadow-sm);
 }
 
-.space-pill__count {
-  position: absolute;
-  bottom: -5px;
-  right: -5px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  font-size: 9px;
-  font-weight: 600;
-  color: var(--text-muted);
-  line-height: 12px;
-  text-align: center;
-  pointer-events: none;
+.space-chip__emoji {
+  font-size: 14px;
+  line-height: 1;
 }
 
-.space-pill--active .space-pill__count {
-  background: var(--primary-hover);
-  border-color: transparent;
-  color: #fff;
+.space-chip__name {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+.space-chip__count {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.65;
+  background: rgba(0,0,0,0.08);
+  border-radius: 8px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
+.space-chip--active .space-chip__count {
+  background: rgba(255,255,255,0.25);
+  opacity: 1;
+}
+
+.space-chip__actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+}
+
+.space-chip:hover .space-chip__actions {
+  display: inline-flex;
+}
+
+.space-chip__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: inherit;
+  opacity: 0.6;
+  transition: opacity var(--transition), background var(--transition);
+  cursor: pointer;
+}
+
+.space-chip__action:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.08);
+}
+
+.space-chip--active .space-chip__action:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.space-chip__action--danger:hover {
+  color: var(--red);
+  background: var(--red-soft) !important;
+}
+
+/* keep legacy .space-pill for any JS fallback references */
+.space-pill { display: none; }
 
 .space-pill-menu {
   position: fixed;
@@ -1307,6 +1352,12 @@ details.theme-custom[open] .theme-custom__toggle::before {
 
 .space-pill-menu__item--danger {
   color: var(--red);
+}
+
+.space-pill-menu__divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 0;
 }
 
 /* ───────── Workspace Card ───────── */
