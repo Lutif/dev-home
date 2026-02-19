@@ -239,7 +239,8 @@ function normalizeSpace(space) {
     },
     autoArchiveHours: space.autoArchiveHours === 24 ? 24 : 12,
     saved: !!space.saved,
-    createdAt: space.createdAt
+    createdAt: space.createdAt,
+    recentlyClosed: Array.isArray(space.recentlyClosed) ? space.recentlyClosed : []
   };
 }
 
@@ -469,6 +470,9 @@ async function loadCurrentSpace() {
       </div>`;
   }
   liveFoldersList.innerHTML = liveFoldersHtml;
+
+  // Render recently closed for this space
+  renderRecentlyClosed(space.recentlyClosed || []);
 
   attachSpaceEventListeners(space, windowId, allTabs);
 }
@@ -2011,6 +2015,79 @@ function schedulePersistCurrentSpace() {
   }, 250);
 }
 
+// ────── Recently Closed ──────
+const MAX_RECENT = 10;
+
+async function addRecentlyClosed(tab) {
+  if (!currentSpaceId || !tab || !tab.url) return;
+  const { spaces = {} } = await chrome.storage.local.get('spaces');
+  const space = spaces[currentSpaceId];
+  if (!space) return;
+  // Don't track if it's a pinned entry
+  if ((space.pinnedEntries || []).some(e => e.url === tab.url)) return;
+  if (!space.recentlyClosed) space.recentlyClosed = [];
+  // Remove duplicate if already present
+  space.recentlyClosed = space.recentlyClosed.filter(t => t.url !== tab.url);
+  // Prepend and cap
+  space.recentlyClosed.unshift({ url: tab.url, title: tab.title || tab.url, favIconUrl: tab.favIconUrl || '', closedAt: Date.now() });
+  space.recentlyClosed = space.recentlyClosed.slice(0, MAX_RECENT);
+  spaces[currentSpaceId] = space;
+  await chrome.storage.local.set({ spaces });
+  renderRecentlyClosed(space.recentlyClosed);
+}
+
+function renderRecentlyClosed(items) {
+  const section = $('#recentlyClosedSection');
+  const list = $('#recentlyClosedList');
+  const countEl = $('#recentlyClosedCount');
+  if (!section || !list) return;
+
+  if (!items || items.length === 0) {
+    section.hidden = true;
+    return;
+  }
+
+  section.hidden = false;
+  if (countEl) countEl.textContent = items.length;
+
+  list.innerHTML = items.map(t => `
+    <div class="recently-closed__item" data-url="${escapeHtml(t.url)}">
+      ${t.favIconUrl ? `<img src="${escapeHtml(t.favIconUrl)}" alt="">` : '<span style="width:14px;height:14px;flex-shrink:0"></span>'}
+      <span class="recently-closed__item-title" title="${escapeHtml(t.url)}">${escapeHtml(truncate(t.title || t.url, 38))}</span>
+      <button type="button" class="recently-closed__restore" data-url="${escapeHtml(t.url)}" title="Reopen">↩</button>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.recently-closed__item').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      if (e.target.closest('button')) return;
+      const url = el.dataset.url;
+      if (url && currentWindowId) await chrome.tabs.create({ url, windowId: currentWindowId }).catch(() => {});
+    });
+  });
+  list.querySelectorAll('.recently-closed__restore').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const url = btn.dataset.url;
+      if (url && currentWindowId) await chrome.tabs.create({ url, windowId: currentWindowId }).catch(() => {});
+    });
+  });
+}
+
+$('#recentlyClosedToggle').addEventListener('click', () => {
+  $('#recentlyClosedSection').classList.toggle('collapsed');
+});
+
+$('#clearRecentlyClosed').addEventListener('click', async () => {
+  if (!currentSpaceId) return;
+  const { spaces = {} } = await chrome.storage.local.get('spaces');
+  if (spaces[currentSpaceId]) {
+    spaces[currentSpaceId].recentlyClosed = [];
+    await chrome.storage.local.set({ spaces });
+    renderRecentlyClosed([]);
+  }
+});
+
 // Listen for background messages (e.g., auto-updates, TABS_CHANGED)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'SERVICE_UPDATE' && msg.service) {
@@ -2023,5 +2100,8 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
   if (msg.type === 'TABS_CHANGED' && msg.windowId != null && msg.windowId === currentWindowId) {
     loadCurrentSpace().then(() => schedulePersistCurrentSpace());
+  }
+  if (msg.type === 'TAB_CLOSED' && msg.windowId === currentWindowId) {
+    addRecentlyClosed(msg.tab);
   }
 });

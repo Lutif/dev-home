@@ -178,6 +178,17 @@
           <div id="liveTabsList"></div>
           <div id="liveFoldersList"></div>
         </div>
+        <div class="space-section space-section--recent" id="recentlyClosedSection" hidden>
+          <div class="space-section__label-row">
+            <button type="button" class="space-section__toggle-btn" id="recentlyClosedToggle">
+              <svg class="space-section__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="space-section__label">Recently Closed</span>
+              <span class="space-section__count" id="recentlyClosedCount"></span>
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" id="clearRecentlyClosed" title="Clear history">Clear</button>
+          </div>
+          <div id="recentlyClosedList" class="recently-closed__list"></div>
+        </div>
       </div>
     </div>
   </div>
