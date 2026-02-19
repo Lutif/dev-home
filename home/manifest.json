@@ -10,7 +10,8 @@
     "storage",
     "scripting",
     "activeTab",
-    "alarms"
+    "alarms",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "https://github.com/*",
