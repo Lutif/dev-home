@@ -392,7 +392,6 @@ async function loadCurrentSpace() {
         <span class="space-entry__title">${escapeHtml(truncate(entry.title || entry.url, 40))}</span>
         ${openTab ? '<span class="space-entry__dot" title="Open"></span>' : ''}
         <button type="button" class="btn btn--ghost btn--sm space-entry-unpin" data-index="${i}" title="Unpin">×</button>
-        <button type="button" class="btn btn--ghost btn--sm space-entry-littlearc" data-url="${escapeHtml(entry.url)}" title="Open in small window">↗</button>
       </div>`;
   });
   pinnedEntriesList.innerHTML = pinnedHtml || '<div class="space-empty">No pinned entries</div>';
@@ -589,9 +588,6 @@ function attachSpaceEventListeners(space, windowId, allTabs) {
   });
   pinnedEntriesList.querySelectorAll('.space-entry-unpin').forEach(btn => {
     btn.addEventListener('click', async (e) => { e.stopPropagation(); await unpinEntry(parseInt(btn.dataset.index, 10)); });
-  });
-  pinnedEntriesList.querySelectorAll('.space-entry-littlearc').forEach(btn => {
-    btn.addEventListener('click', (e) => { e.stopPropagation(); openInLittleArc(btn.dataset.url); });
   });
   // Setup drag-and-drop
   setupDragAndDrop();
@@ -1705,7 +1701,7 @@ async function refreshService(service) {
     if (response && response.success) {
       cache[service] = response.data;
       statusEl.className = 'service-status service-status--connected';
-      statusEl.innerHTML = `<span class="status-dot"></span> Connected — scraped from open tab`;
+      statusEl.innerHTML = `<span class="status-dot"></span> Live`;
 
       const tabBtn = $(`.tabs__btn[data-tab="${service}"]`);
       if (tabBtn && response.data && response.data.length > 0) {
@@ -1725,14 +1721,27 @@ async function refreshService(service) {
   }
 }
 
+function setServiceCount(service, n) {
+  const el = $(`#${service}Count`);
+  if (!el) return;
+  if (n > 0) {
+    el.textContent = n;
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
+}
+
 function renderServiceData(service, data) {
   const listEl = $(`#${service}List`);
 
   if (!data || data.length === 0) {
+    setServiceCount(service, 0);
     renderEmptyService(service, true);
     return;
   }
 
+  setServiceCount(service, data.length);
   if (service === 'github') renderGitHub(listEl, data);
   else if (service === 'slack') renderSlack(listEl, data);
   else if (service === 'calendar') renderCalendar(listEl, data);
@@ -1746,30 +1755,44 @@ function renderGitHub(el, prs) {
   const assigned = prs.filter(p => p.section === 'assigned');
   const other = prs.filter(p => !['review-requested', 'created', 'assigned'].includes(p.section));
 
+  const groups = [
+    { key: 'review-requested', label: 'Review Requested', items: reviewRequested },
+    { key: 'created',          label: 'Your PRs',         items: yourPRs },
+    { key: 'assigned',         label: 'Assigned',         items: assigned },
+    { key: 'other',            label: 'Other',            items: other },
+  ].filter(g => g.items.length);
+
   let html = '';
-
-  if (reviewRequested.length) {
-    html += `<div class="section-label">Review Requested (${reviewRequested.length})</div>`;
-    html += reviewRequested.map(pr => prCard(pr)).join('');
-  }
-  if (yourPRs.length) {
-    html += `<div class="section-label">Your PRs (${yourPRs.length})</div>`;
-    html += yourPRs.map(pr => prCard(pr)).join('');
-  }
-  if (assigned.length) {
-    html += `<div class="section-label">Assigned (${assigned.length})</div>`;
-    html += assigned.map(pr => prCard(pr)).join('');
-  }
-  if (other.length) {
-    html += `<div class="section-label">Other (${other.length})</div>`;
-    html += other.map(pr => prCard(pr)).join('');
-  }
-
-  if (!html) {
+  if (groups.length) {
+    groups.forEach(g => {
+      const collapsed = localStorage.getItem(`prGroup_${g.key}`) === 'collapsed';
+      html += `
+        <div class="pr-group ${collapsed ? 'pr-group--collapsed' : ''}" data-group="${g.key}">
+          <button type="button" class="pr-group__header">
+            <svg class="pr-group__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="10" height="10"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="pr-group__label">${g.label}</span>
+            <span class="pr-group__count">${g.items.length}</span>
+          </button>
+          <div class="pr-group__content">
+            ${g.items.map(pr => prCard(pr)).join('')}
+          </div>
+        </div>`;
+    });
+  } else {
     html = prs.map(pr => prCard(pr)).join('');
   }
 
   el.innerHTML = html;
+
+  // Collapsible group toggle
+  el.querySelectorAll('.pr-group__header').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const group = btn.closest('.pr-group');
+      const key = group.dataset.group;
+      const isNowCollapsed = group.classList.toggle('pr-group--collapsed');
+      localStorage.setItem(`prGroup_${key}`, isNowCollapsed ? 'collapsed' : 'open');
+    });
+  });
 
   // Click to open PR
   el.querySelectorAll('.item-card').forEach(card => {

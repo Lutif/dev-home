@@ -814,18 +814,15 @@ details.theme-custom[open] .theme-custom__toggle::before {
 }
 
 .section__count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: var(--primary);
-  color: white;
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 10px;
-  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-light);
+  margin-left: 2px;
+}
+
+.section__count::before {
+  content: '·';
+  margin-right: 2px;
 }
 
 .section__content {
@@ -1180,6 +1177,22 @@ details.theme-custom[open] .theme-custom__toggle::before {
 
 .space-entry:hover {
   background: var(--surface-hover);
+}
+
+/* Pin / close / unpin buttons — hidden until row is hovered */
+.space-entry-pin,
+.space-entry-close,
+.space-entry-unpin,
+.space-entry-move-out {
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.space-entry:hover .space-entry-pin,
+.space-entry:hover .space-entry-close,
+.space-entry:hover .space-entry-unpin,
+.space-entry:hover .space-entry-move-out {
+  opacity: 1;
 }
 
 .space-entry__icon {
@@ -1687,27 +1700,34 @@ details.theme-custom[open] .theme-custom__toggle::before {
 .service-status {
   display: none;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 5px;
   border-radius: var(--radius-sm);
-  font-size: 11.5px;
-  margin-bottom: 10px;
+  font-size: 11px;
+  margin-bottom: 8px;
 }
 
+/* Connected: quiet inline hint — no background, muted text */
 .service-status--connected {
   display: flex;
-  background: var(--green-soft);
-  color: var(--green);
+  color: var(--text-light);
+  padding: 2px 0;
+}
+
+.service-status--connected .status-dot {
+  background: var(--green);
+  opacity: 0.7;
 }
 
 .service-status--scanning {
   display: flex;
+  padding: 5px 10px;
   background: var(--yellow-soft);
   color: var(--yellow);
 }
 
 .service-status--error {
   display: flex;
+  padding: 5px 10px;
   background: var(--red-soft);
   color: var(--red);
 }
@@ -1994,6 +2014,66 @@ details.theme-custom[open] .theme-custom__toggle::before {
   letter-spacing: 0.7px;
   color: var(--text-light);
   padding: 8px 0 6px;
+}
+
+/* Collapsible PR sub-groups */
+.pr-group {
+  margin-bottom: 2px;
+}
+
+.pr-group__header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 5px 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-light);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  transition: color var(--transition);
+}
+
+.pr-group__header:hover {
+  color: var(--text);
+}
+
+.pr-group__chevron {
+  flex-shrink: 0;
+  transition: transform var(--transition);
+}
+
+.pr-group--collapsed .pr-group__chevron {
+  transform: rotate(-90deg);
+}
+
+.pr-group__label {
+  flex: 1;
+  text-align: left;
+}
+
+.pr-group__count {
+  background: var(--border);
+  color: var(--text-muted);
+  border-radius: 10px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.pr-group__content {
+  overflow: hidden;
+  max-height: 2000px;
+  transition: max-height 200ms ease;
+}
+
+.pr-group--collapsed .pr-group__content {
+  max-height: 0;
 }
 
 /* ───────── Modal / bottom-sheet ───────── */
