@@ -46,62 +46,80 @@
             </label>
           </div>
           <div class="header__edit-form-divider"></div>
-          <div class="header__edit-form-row header__edit-form-row--theme">
-            <div class="theme-color-picker">
-              <label class="theme-color-picker__label">Primary</label>
-              <input type="color" class="theme-color-picker__input" id="editSpaceThemePrimary" value="#6366f1">
-            </div>
-            <div class="theme-color-picker">
-              <label class="theme-color-picker__label">Background</label>
-              <input type="color" class="theme-color-picker__input" id="editSpaceThemeBackground" value="#0f1117">
-            </div>
-            <div class="theme-color-picker">
-              <label class="theme-color-picker__label">Surface</label>
-              <input type="color" class="theme-color-picker__input" id="editSpaceThemeSurface" value="#1a1d27">
-            </div>
-            <div class="theme-color-picker">
-              <label class="theme-color-picker__label">Accent</label>
-              <input type="color" class="theme-color-picker__input" id="editSpaceThemeAccent" value="#818cf8">
-            </div>
-          </div>
           <div class="theme-presets">
-            <button type="button" class="theme-preset" data-preset="default" title="Default Blue">
-              <span class="theme-preset__dot" style="background: #6366f1"></span>
-              <span class="theme-preset__dot" style="background: #0f1117"></span>
-              <span class="theme-preset__dot" style="background: #1a1d27"></span>
-              <span class="theme-preset__dot" style="background: #818cf8"></span>
+            <button type="button" class="theme-preset" data-preset="paper">
+              <span class="theme-preset__swatch">
+                <span class="theme-preset__swatch-bg" style="background: #f5f0e8"></span>
+                <span class="theme-preset__swatch-accent" style="background: #5c6bc0"></span>
+              </span>
+              <span class="theme-preset__name">Paper</span>
             </button>
-            <button type="button" class="theme-preset" data-preset="ocean" title="Ocean">
-              <span class="theme-preset__dot" style="background: #0ea5e9"></span>
-              <span class="theme-preset__dot" style="background: #0c1821"></span>
-              <span class="theme-preset__dot" style="background: #1a2734"></span>
-              <span class="theme-preset__dot" style="background: #38bdf8"></span>
+            <button type="button" class="theme-preset" data-preset="dark">
+              <span class="theme-preset__swatch">
+                <span class="theme-preset__swatch-bg" style="background: #0f1117"></span>
+                <span class="theme-preset__swatch-accent" style="background: #6366f1"></span>
+              </span>
+              <span class="theme-preset__name">Dark</span>
             </button>
-            <button type="button" class="theme-preset" data-preset="forest" title="Forest">
-              <span class="theme-preset__dot" style="background: #10b981"></span>
-              <span class="theme-preset__dot" style="background: #0a1410"></span>
-              <span class="theme-preset__dot" style="background: #1a2821"></span>
-              <span class="theme-preset__dot" style="background: #34d399"></span>
+            <button type="button" class="theme-preset" data-preset="ocean">
+              <span class="theme-preset__swatch">
+                <span class="theme-preset__swatch-bg" style="background: #0c1821"></span>
+                <span class="theme-preset__swatch-accent" style="background: #0ea5e9"></span>
+              </span>
+              <span class="theme-preset__name">Ocean</span>
             </button>
-            <button type="button" class="theme-preset" data-preset="sunset" title="Sunset">
-              <span class="theme-preset__dot" style="background: #f59e0b"></span>
-              <span class="theme-preset__dot" style="background: #1a0f0a"></span>
-              <span class="theme-preset__dot" style="background: #2b1e15"></span>
-              <span class="theme-preset__dot" style="background: #fbbf24"></span>
+            <button type="button" class="theme-preset" data-preset="forest">
+              <span class="theme-preset__swatch">
+                <span class="theme-preset__swatch-bg" style="background: #0a1410"></span>
+                <span class="theme-preset__swatch-accent" style="background: #10b981"></span>
+              </span>
+              <span class="theme-preset__name">Forest</span>
             </button>
-            <button type="button" class="theme-preset" data-preset="rose" title="Rose">
-              <span class="theme-preset__dot" style="background: #f43f5e"></span>
-              <span class="theme-preset__dot" style="background: #1a0a0f"></span>
-              <span class="theme-preset__dot" style="background: #2b1520"></span>
-              <span class="theme-preset__dot" style="background: #fb7185"></span>
+            <button type="button" class="theme-preset" data-preset="sunset">
+              <span class="theme-preset__swatch">
+                <span class="theme-preset__swatch-bg" style="background: #1a0f0a"></span>
+                <span class="theme-preset__swatch-accent" style="background: #f59e0b"></span>
+              </span>
+              <span class="theme-preset__name">Sunset</span>
             </button>
-            <button type="button" class="theme-preset" data-preset="purple" title="Purple">
-              <span class="theme-preset__dot" style="background: #a855f7"></span>
-              <span class="theme-preset__dot" style="background: #150a1a"></span>
-              <span class="theme-preset__dot" style="background: #261a2b"></span>
-              <span class="theme-preset__dot" style="background: #c084fc"></span>
+            <button type="button" class="theme-preset" data-preset="rose">
+              <span class="theme-preset__swatch">
+                <span class="theme-preset__swatch-bg" style="background: #1a0a0f"></span>
+                <span class="theme-preset__swatch-accent" style="background: #f43f5e"></span>
+              </span>
+              <span class="theme-preset__name">Rose</span>
+            </button>
+            <button type="button" class="theme-preset" data-preset="purple">
+              <span class="theme-preset__swatch">
+                <span class="theme-preset__swatch-bg" style="background: #150a1a"></span>
+                <span class="theme-preset__swatch-accent" style="background: #a855f7"></span>
+              </span>
+              <span class="theme-preset__name">Purple</span>
             </button>
           </div>
+          <details class="theme-custom">
+            <summary class="theme-custom__toggle">Custom colors</summary>
+            <div class="theme-custom__body">
+              <div class="header__edit-form-row header__edit-form-row--theme">
+                <div class="theme-color-picker">
+                  <label class="theme-color-picker__label">Primary</label>
+                  <input type="color" class="theme-color-picker__input" id="editSpaceThemePrimary" value="#5c6bc0">
+                </div>
+                <div class="theme-color-picker">
+                  <label class="theme-color-picker__label">Background</label>
+                  <input type="color" class="theme-color-picker__input" id="editSpaceThemeBackground" value="#f5f0e8">
+                </div>
+                <div class="theme-color-picker">
+                  <label class="theme-color-picker__label">Surface</label>
+                  <input type="color" class="theme-color-picker__input" id="editSpaceThemeSurface" value="#faf7f2">
+                </div>
+                <div class="theme-color-picker">
+                  <label class="theme-color-picker__label">Accent</label>
+                  <input type="color" class="theme-color-picker__input" id="editSpaceThemeAccent" value="#3f51b5">
+                </div>
+              </div>
+            </div>
+          </details>
           <div class="header__edit-form-actions">
             <button type="button" class="btn btn--primary btn--sm" id="editSpaceSave">Save</button>
             <button type="button" class="btn btn--ghost btn--sm" id="editSpaceCancel">Cancel</button>

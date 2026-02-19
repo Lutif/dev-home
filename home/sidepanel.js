@@ -259,7 +259,7 @@ async function getOrCreateCurrentSpace() {
       pinnedEntries: [],
       pinnedFolders: [],
       sections: ['github', 'slack', 'calendar'], // default: all sections enabled
-      theme: { primary: '#6366f1', background: '#0f1117', surface: '#1a1d27', accent: '#818cf8' },
+      theme: { primary: '#5c6bc0', background: '#f5f0e8', surface: '#faf7f2', accent: '#3f51b5' },
       autoArchiveHours: 12,
       saved: false,
       createdAt: new Date().toISOString()
@@ -275,24 +275,24 @@ async function getOrCreateCurrentSpace() {
 
 function applyTheme(theme) {
   const root = document.documentElement;
-  const t = theme || {
-    primary: '#6366f1',
-    background: '#0f1117',
-    surface: '#1a1d27',
-    accent: '#818cf8'
-  };
+  const t = theme || { primary: '#5c6bc0', background: '#f5f0e8', surface: '#faf7f2', accent: '#3f51b5' };
+
+  const bgBrightness = getBrightness(t.background);
+  const isLight = bgBrightness > 128;
 
   root.style.setProperty('--primary', t.primary);
-  root.style.setProperty('--primary-hover', lighten(t.primary, 10));
+  root.style.setProperty('--primary-hover', isLight ? darken(t.primary, 10) : lighten(t.primary, 10));
+  root.style.setProperty('--primary-soft', hexToRgba(t.primary, 0.1));
   root.style.setProperty('--bg', t.background);
+  root.style.setProperty('--bg-deep', isLight ? darken(t.background, 4) : darken(t.background, 3));
   root.style.setProperty('--surface', t.surface);
-  root.style.setProperty('--surface-hover', lighten(t.surface, 5));
-  root.style.setProperty('--border', lighten(t.surface, 15));
-
-  // Derive text colors based on background brightness
-  const bgBrightness = getBrightness(t.background);
-  root.style.setProperty('--text', bgBrightness > 128 ? '#18181b' : '#e4e4e7');
-  root.style.setProperty('--text-muted', bgBrightness > 128 ? '#52525b' : '#71717a');
+  root.style.setProperty('--surface-hover', isLight ? darken(t.surface, 5) : lighten(t.surface, 5));
+  root.style.setProperty('--surface-raised', isLight ? '#ffffff' : lighten(t.surface, 4));
+  root.style.setProperty('--border', isLight ? darken(t.surface, 12) : lighten(t.surface, 12));
+  root.style.setProperty('--border-light', isLight ? darken(t.surface, 6) : lighten(t.surface, 6));
+  root.style.setProperty('--text', isLight ? '#1c1a17' : '#e4e4e7');
+  root.style.setProperty('--text-muted', isLight ? '#7a7369' : '#71717a');
+  root.style.setProperty('--text-light', isLight ? '#a09890' : '#52525b');
 }
 
 function lighten(color, percent) {
@@ -301,6 +301,22 @@ function lighten(color, percent) {
   const g = Math.min(255, ((num >> 8) & 0xff) + Math.round(255 * (percent / 100)));
   const b = Math.min(255, (num & 0xff) + Math.round(255 * (percent / 100)));
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+function darken(color, percent) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const r = Math.max(0, ((num >> 16) & 0xff) - Math.round(255 * (percent / 100)));
+  const g = Math.max(0, ((num >> 8) & 0xff) - Math.round(255 * (percent / 100)));
+  const b = Math.max(0, (num & 0xff) - Math.round(255 * (percent / 100)));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+function hexToRgba(color, alpha) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const r = (num >> 16) & 0xff;
+  const g = (num >> 8) & 0xff;
+  const b = num & 0xff;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function getBrightness(color) {
@@ -976,7 +992,7 @@ async function createSavedSpaceFromCurrent(name, emoji = '') {
     tabs: unpinnedTabs,
     folders,
     sections: space.sections || ['github', 'slack', 'calendar'],
-    theme: space.theme || { primary: '#6366f1', background: '#0f1117', surface: '#1a1d27', accent: '#818cf8' },
+    theme: space.theme || { primary: '#5c6bc0', background: '#f5f0e8', surface: '#faf7f2', accent: '#3f51b5' },
     createdAt: new Date().toISOString(),
     saved: true
   };
@@ -1057,11 +1073,18 @@ $('#editCurrentSpace').addEventListener('click', async (e) => {
   $('#editSpaceSectionCalendar').checked = sections.includes('calendar');
 
   // Set theme colors
-  const theme = space.theme || { primary: '#6366f1', background: '#0f1117', surface: '#1a1d27', accent: '#818cf8' };
+  const theme = space.theme || { primary: '#5c6bc0', background: '#f5f0e8', surface: '#faf7f2', accent: '#3f51b5' };
   if ($('#editSpaceThemePrimary')) $('#editSpaceThemePrimary').value = theme.primary;
   if ($('#editSpaceThemeBackground')) $('#editSpaceThemeBackground').value = theme.background;
   if ($('#editSpaceThemeSurface')) $('#editSpaceThemeSurface').value = theme.surface;
   if ($('#editSpaceThemeAccent')) $('#editSpaceThemeAccent').value = theme.accent;
+
+  // Mark active preset
+  $$('.theme-preset').forEach(btn => {
+    const p = themePresets[btn.dataset.preset];
+    const isActive = p && p.background === theme.background && p.primary === theme.primary;
+    btn.classList.toggle('theme-preset--active', isActive);
+  });
 
   if (editSpaceForm) {
     editSpaceForm.hidden = false;
@@ -1127,11 +1150,12 @@ $('#editSpaceSave').addEventListener('click', async () => {
 
 // Theme preset handlers
 const themePresets = {
-  default: { primary: '#6366f1', background: '#0f1117', surface: '#1a1d27', accent: '#818cf8' },
-  ocean: { primary: '#0ea5e9', background: '#0c1821', surface: '#1a2734', accent: '#38bdf8' },
+  paper:  { primary: '#5c6bc0', background: '#f5f0e8', surface: '#faf7f2', accent: '#3f51b5' },
+  dark:   { primary: '#6366f1', background: '#0f1117', surface: '#1a1d27', accent: '#818cf8' },
+  ocean:  { primary: '#0ea5e9', background: '#0c1821', surface: '#1a2734', accent: '#38bdf8' },
   forest: { primary: '#10b981', background: '#0a1410', surface: '#1a2821', accent: '#34d399' },
   sunset: { primary: '#f59e0b', background: '#1a0f0a', surface: '#2b1e15', accent: '#fbbf24' },
-  rose: { primary: '#f43f5e', background: '#1a0a0f', surface: '#2b1520', accent: '#fb7185' },
+  rose:   { primary: '#f43f5e', background: '#1a0a0f', surface: '#2b1520', accent: '#fb7185' },
   purple: { primary: '#a855f7', background: '#150a1a', surface: '#261a2b', accent: '#c084fc' }
 };
 
@@ -1145,6 +1169,8 @@ $$('.theme-preset').forEach(btn => {
       $('#editSpaceThemeBackground').value = theme.background;
       $('#editSpaceThemeSurface').value = theme.surface;
       $('#editSpaceThemeAccent').value = theme.accent;
+      $$('.theme-preset').forEach(b => b.classList.remove('theme-preset--active'));
+      btn.classList.add('theme-preset--active');
     }
   });
 });
@@ -1157,7 +1183,7 @@ function normalizeWorkspace(ws) {
     tabs: Array.isArray(ws.tabs) ? ws.tabs : [],
     folders: Array.isArray(ws.folders) ? ws.folders : [],
     sections: Array.isArray(ws.sections) ? ws.sections : ['github', 'slack', 'calendar'],
-    theme: ws.theme || { primary: '#6366f1', background: '#0f1117', surface: '#1a1d27', accent: '#818cf8' }
+    theme: ws.theme || { primary: '#5c6bc0', background: '#f5f0e8', surface: '#faf7f2', accent: '#3f51b5' }
   };
 }
 
