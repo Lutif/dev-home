@@ -219,7 +219,13 @@ function normalizeSpace(space) {
     name: space.name || 'Unnamed',
     emoji: typeof space.emoji === 'string' ? [...space.emoji.trim()].slice(0, 2).join('') : '',
     pinnedEntries: Array.isArray(space.pinnedEntries) ? space.pinnedEntries : [],
-    pinnedFolders: Array.isArray(space.pinnedFolders) ? space.pinnedFolders : [],
+    pinnedFolders: Array.isArray(space.pinnedFolders) ? space.pinnedFolders.map(f => {
+      // Migrate legacy entryIndices → entryUrls
+      if (!f.entryUrls && Array.isArray(f.entryIndices) && Array.isArray(space.pinnedEntries)) {
+        return { ...f, entryUrls: f.entryIndices.map(i => space.pinnedEntries[i] && space.pinnedEntries[i].url).filter(Boolean) };
+      }
+      return { ...f, entryUrls: Array.isArray(f.entryUrls) ? f.entryUrls : [] };
+    }) : [],
     sections: Array.isArray(space.sections) ? space.sections : ['github', 'slack', 'calendar'], // default: all sections
     theme: space.theme || {
       primary: '#6366f1',
@@ -367,11 +373,11 @@ async function loadCurrentSpace() {
   const entries = space.pinnedEntries || [];
   const folders = space.pinnedFolders || [];
   const entriesInFolders = new Set();
-  folders.forEach(f => (f.entryIndices || []).forEach(i => entriesInFolders.add(i)));
+  folders.forEach(f => (f.entryUrls || []).forEach(u => entriesInFolders.add(u)));
 
   let pinnedHtml = '';
   entries.forEach((entry, i) => {
-    if (entriesInFolders.has(i)) return;
+    if (entriesInFolders.has(entry.url)) return;
     const openTab = allTabs.find(t => t.url === entry.url);
 
     pinnedHtml += `
@@ -386,11 +392,14 @@ async function loadCurrentSpace() {
   });
   pinnedEntriesList.innerHTML = pinnedHtml || '<div class="space-empty">No pinned entries</div>';
 
+  // Build a URL→entry map for fast lookup
+  const entryByUrl = new Map(entries.map(e => [e.url, e]));
+
   let pinnedFoldersHtml = '';
   folders.forEach((folder, fi) => {
     const collapsed = folder.collapsed;
-    const indices = folder.entryIndices || [];
-    const folderEntries = indices.map(i => entries[i]).filter(Boolean);
+    const urls = folder.entryUrls || [];
+    const folderEntries = urls.map(u => entryByUrl.get(u)).filter(Boolean);
     pinnedFoldersHtml += `
       <div class="space-folder ${collapsed ? 'space-folder--collapsed' : ''}" data-folder-index="${fi}">
         <button type="button" class="space-folder__header" data-folder-index="${fi}">
@@ -399,16 +408,15 @@ async function loadCurrentSpace() {
           <button type="button" class="btn btn--ghost btn--sm space-folder-delete" data-folder-index="${fi}" title="Delete folder">×</button>
         </button>
         <div class="space-folder__content" data-folder-index="${fi}" data-drop-zone="folder">
-          ${folderEntries.length > 0 ? folderEntries.map((entry, ei) => {
-            const idx = indices[ei];
+          ${folderEntries.length > 0 ? folderEntries.map((entry) => {
             const openTab = allTabs.find(t => t.url === entry.url);
             return `
-            <div class="space-entry space-entry--pinned" draggable="true" data-url="${escapeHtml(entry.url)}" data-index="${idx}" data-type="pinned-entry">
+            <div class="space-entry space-entry--pinned" draggable="true" data-url="${escapeHtml(entry.url)}" data-type="pinned-entry">
               <span class="space-entry__drag-handle">⋮⋮</span>
               ${entry.favIconUrl ? `<img class="space-entry__icon" src="${entry.favIconUrl}" alt="">` : '<span class="space-entry__icon"></span>'}
               <span class="space-entry__title">${escapeHtml(truncate(entry.title || entry.url, 35))}</span>
               ${openTab ? '<span class="space-entry__dot"></span>' : ''}
-              <button type="button" class="btn btn--ghost btn--sm space-entry-unpin" data-index="${idx}" title="Unpin">×</button>
+              <button type="button" class="btn btn--ghost btn--sm space-entry-unpin" data-url="${escapeHtml(entry.url)}" title="Unpin">×</button>
             </div>`;
           }).join('') : '<div class="space-empty">Drop entries here</div>'}
         </div>
@@ -593,12 +601,12 @@ function attachSpaceEventListeners(space, windowId, allTabs) {
     });
   });
   pinnedFoldersList.querySelectorAll('.space-entry-unpin').forEach(btn => {
-    btn.addEventListener('click', async (e) => { e.stopPropagation(); await unpinEntry(parseInt(btn.dataset.index, 10)); });
+    btn.addEventListener('click', async (e) => { e.stopPropagation(); await unpinEntry(btn.dataset.url || parseInt(btn.dataset.index, 10)); });
   });
   pinnedFoldersList.querySelectorAll('.space-entry-move-out').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      await moveEntryToFolder(parseInt(btn.dataset.index, 10), -1); // -1 means move out of folder
+      await moveEntryToFolder(btn.dataset.url, -1); // -1 means move out of folder
     });
   });
 
@@ -751,17 +759,17 @@ async function handleDrop(e) {
 
   // Handle different drop scenarios
   if (draggedData.type === 'pinned-entry') {
-    const entryIndex = parseInt(draggedData.index, 10);
+    const entryUrl = draggedData.url;
 
     if (dropZoneType === 'folder') {
       // Moving pinned entry to a folder
-      await moveEntryToFolder(entryIndex, parseInt(folderIndex, 10));
+      await moveEntryToFolder(entryUrl, parseInt(folderIndex, 10));
     } else if (dropZoneType === 'pinned-section') {
       // Moving pinned entry out of folder (to main pinned section)
-      await moveEntryToFolder(entryIndex, -1);
+      await moveEntryToFolder(entryUrl, -1);
     } else if (dropZoneType === 'tabs-section' || dropZoneType === 'tabgroup') {
       // Unpinning entry (moving to tabs)
-      await unpinEntry(entryIndex);
+      await unpinEntry(entryUrl);
       // TODO: If dropping on tab group, add to group
     }
   } else if (draggedData.type === 'live-tab') {
@@ -771,16 +779,8 @@ async function handleDrop(e) {
       // Pinning tab
       await pinTab(tabId);
       if (dropZoneType === 'folder') {
-        // After pinning, move to folder
-        // Need to find the new entry index
-        const { spaces = {} } = await chrome.storage.local.get('spaces');
-        const space = spaces[currentSpaceId];
-        if (space && space.pinnedEntries) {
-          const newIndex = space.pinnedEntries.findIndex(e => e.url === draggedData.url);
-          if (newIndex >= 0) {
-            await moveEntryToFolder(newIndex, parseInt(folderIndex, 10));
-          }
-        }
+        // After pinning, move to folder by URL
+        await moveEntryToFolder(draggedData.url, parseInt(folderIndex, 10));
       }
     } else if (dropZoneType === 'tabgroup' && chrome.tabGroups) {
       // Moving tab to a different group
@@ -826,18 +826,29 @@ async function pinTab(tabId) {
   schedulePersistCurrentSpace();
 }
 
-async function unpinEntry(entryIndex) {
-  if (currentSpaceId == null || entryIndex < 0) return;
+async function unpinEntry(entryIndexOrUrl) {
+  if (!currentSpaceId) return;
   const { spaces = {} } = await chrome.storage.local.get('spaces');
   const space = spaces[currentSpaceId];
-  if (!space || !space.pinnedEntries || !space.pinnedEntries[entryIndex]) return;
-  const url = space.pinnedEntries[entryIndex].url;
+  if (!space || !space.pinnedEntries) return;
+
+  // Accept either a numeric index or a URL string
+  let entryIndex, url;
+  if (typeof entryIndexOrUrl === 'string') {
+    entryIndex = space.pinnedEntries.findIndex(e => e.url === entryIndexOrUrl);
+    url = entryIndexOrUrl;
+  } else {
+    entryIndex = entryIndexOrUrl;
+    url = space.pinnedEntries[entryIndex] ? space.pinnedEntries[entryIndex].url : null;
+  }
+  if (entryIndex < 0 || !space.pinnedEntries[entryIndex]) return;
+
   space.pinnedEntries.splice(entryIndex, 1);
   (space.pinnedFolders || []).forEach(f => {
-    f.entryIndices = (f.entryIndices || []).map(i => i > entryIndex ? i - 1 : i).filter(i => i !== entryIndex);
+    f.entryUrls = (f.entryUrls || []).filter(u => u !== url);
   });
   await chrome.storage.local.set({ spaces });
-  if (currentWindowId) {
+  if (currentWindowId && url) {
     const tabs = await chrome.tabs.query({ windowId: currentWindowId });
     const t = tabs.find(x => x.url === url);
     if (t) try { await chrome.tabs.update(t.id, { pinned: false }); } catch (_) {}
@@ -854,7 +865,7 @@ async function createPinnedFolder(name) {
   if (!space.pinnedFolders) space.pinnedFolders = [];
   space.pinnedFolders.push({
     name,
-    entryIndices: [],
+    entryUrls: [],
     collapsed: false
   });
   await chrome.storage.local.set({ spaces });
@@ -875,23 +886,25 @@ async function deletePinnedFolder(folderIndex) {
   schedulePersistCurrentSpace();
 }
 
-async function moveEntryToFolder(entryIndex, folderIndex) {
-  if (!currentSpaceId || entryIndex < 0) return;
+async function moveEntryToFolder(entryUrl, folderIndex) {
+  if (!currentSpaceId || !entryUrl) return;
   const { spaces = {} } = await chrome.storage.local.get('spaces');
   const space = spaces[currentSpaceId];
   if (!space) return;
 
   // Remove entry from all folders first
   (space.pinnedFolders || []).forEach(f => {
-    f.entryIndices = (f.entryIndices || []).filter(i => i !== entryIndex);
+    f.entryUrls = (f.entryUrls || []).filter(u => u !== entryUrl);
   });
 
   // Add to target folder (if folderIndex >= 0)
   if (folderIndex >= 0 && space.pinnedFolders && space.pinnedFolders[folderIndex]) {
-    if (!space.pinnedFolders[folderIndex].entryIndices) {
-      space.pinnedFolders[folderIndex].entryIndices = [];
+    if (!space.pinnedFolders[folderIndex].entryUrls) {
+      space.pinnedFolders[folderIndex].entryUrls = [];
     }
-    space.pinnedFolders[folderIndex].entryIndices.push(entryIndex);
+    if (!space.pinnedFolders[folderIndex].entryUrls.includes(entryUrl)) {
+      space.pinnedFolders[folderIndex].entryUrls.push(entryUrl);
+    }
   }
 
   await chrome.storage.local.set({ spaces });
