@@ -2124,6 +2124,8 @@ $('#clearRecentlyClosed').addEventListener('click', async () => {
 // ── Module state ──
 let _imageDirHandle = null;        // FileSystemDirectoryHandle | null
 const _imageBlobUrls = new Set();  // blob: URLs we created (to revoke on reload)
+let _imageFileNames  = [];         // snapshot of last-rendered file names (for change detection)
+let _imagePollTimer  = null;       // setInterval handle
 
 // ── IndexedDB helpers ──
 const IDB_NAME    = 'home-image-picker';
@@ -2329,6 +2331,7 @@ function renderImages(files) {
   // loaded — show grid
   countEl.hidden = false;
   countEl.textContent = files.length;
+  _imageFileNames = files.map(f => f.name); // update snapshot for poll change-detection
 
   // Clear old DOM first (removes live <img> references), then revoke old blob URLs
   list.innerHTML = '';
@@ -2379,8 +2382,10 @@ function renderImagesToolbar() {
     <button type="button" class="btn btn--ghost btn--sm btn--danger" id="imagesRemoveBtn" title="Remove folder">✕</button>`;
   bar.querySelector('#imagesChangeBtn').addEventListener('click', imagesPickFolder);
   bar.querySelector('#imagesRemoveBtn').addEventListener('click', async () => {
+    imagesStopPolling();
     imagesRevokeBlobUrls();
     _imageDirHandle = null;
+    _imageFileNames = [];
     await idbClearHandle();
     renderImages(null);
   });
@@ -2412,13 +2417,52 @@ async function imagesGrantAccess() {
   }
 }
 
+// ── Polling ──
+const IMAGES_POLL_INTERVAL = 5000; // ms
+
+function imagesStartPolling() {
+  if (_imagePollTimer) return; // already running
+  _imagePollTimer = setInterval(imagesPoll, IMAGES_POLL_INTERVAL);
+}
+
+function imagesStopPolling() {
+  if (_imagePollTimer) {
+    clearInterval(_imagePollTimer);
+    _imagePollTimer = null;
+  }
+}
+
+async function imagesPoll() {
+  if (!_imageDirHandle) { imagesStopPolling(); return; }
+
+  // Skip if no permission (don't prompt — just wait)
+  const hasPermission = await imagesQueryPermission(_imageDirHandle);
+  if (!hasPermission) return;
+
+  let files;
+  try {
+    files = await imagesReadFiles(_imageDirHandle);
+  } catch {
+    return; // silently skip on read error
+  }
+
+  // Compare file names to detect additions / deletions
+  const newNames = files.map(f => f.name);
+  const changed  = newNames.length !== _imageFileNames.length ||
+                   newNames.some((n, i) => n !== _imageFileNames[i]);
+  if (changed) {
+    renderImages(files);
+  }
+}
+
 // ── Load files and render ──
 async function imagesLoadAndRender() {
-  if (!_imageDirHandle) { renderImages(null); return; }
+  if (!_imageDirHandle) { imagesStopPolling(); renderImages(null); return; }
 
   // Check permission silently first
   const hasPermission = await imagesQueryPermission(_imageDirHandle);
   if (!hasPermission) {
+    imagesStopPolling();
     renderImages('permission-prompt');
     return;
   }
@@ -2426,7 +2470,9 @@ async function imagesLoadAndRender() {
   try {
     const files = await imagesReadFiles(_imageDirHandle);
     renderImages(files);
+    imagesStartPolling();
   } catch {
+    imagesStopPolling();
     renderImages('error');
   }
 }
