@@ -2330,16 +2330,21 @@ function renderImages(files) {
   countEl.hidden = false;
   countEl.textContent = files.length;
 
+  // Clear old DOM first (removes live <img> references), then revoke old blob URLs
+  list.innerHTML = '';
+  imagesRevokeBlobUrls();
+
   const grid = document.createElement('div');
   grid.className = 'images-grid';
 
   files.forEach(file => {
+    // Create blob URLs only AFTER old ones are revoked
     const blobUrl = imagesCreateBlobUrl(file);
     const thumb = document.createElement('div');
     thumb.className = 'images-thumb';
     thumb.title = file.name;
     thumb.innerHTML = `
-      <img src="${blobUrl}" alt="${escapeHtml(file.name)}" loading="lazy">
+      <img src="${blobUrl}" alt="${escapeHtml(file.name)}">
       <span class="images-thumb__name">${escapeHtml(file.name)}</span>`;
     thumb.addEventListener('click', async () => {
       const ok = await imagesCopyToClipboard(file);
@@ -2354,9 +2359,6 @@ function renderImages(files) {
     grid.appendChild(thumb);
   });
 
-  // Clear old DOM (including any <img> with blob URLs) before revoking
-  list.innerHTML = '';
-  imagesRevokeBlobUrls();
   renderImagesToolbar();
   list.appendChild(grid);
 }
