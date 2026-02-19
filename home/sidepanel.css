@@ -1221,6 +1221,67 @@ details.theme-custom[open] .theme-custom__toggle::before {
   display: none;
 }
 
+/* Open tabs banner */
+.open-tabs-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--primary-soft);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+  animation: bannerSlideIn 150ms ease;
+}
+
+@keyframes bannerSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.open-tabs-banner__text strong {
+  font-weight: 600;
+}
+
+.open-tabs-banner__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.open-tabs-banner__btn {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--transition);
+}
+
+.open-tabs-banner__btn--confirm {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.open-tabs-banner__btn--confirm:hover {
+  background: var(--primary-hover);
+}
+
+.open-tabs-banner__btn--dismiss {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.open-tabs-banner__btn--dismiss:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
 /* Named space chips */
 .space-chip {
   display: inline-flex;

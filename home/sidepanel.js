@@ -1323,6 +1323,46 @@ async function switchToSpace(ws) {
   loadSavedSpaces();
 }
 
+function showOpenTabsBanner(ws) {
+  // Remove any existing banner
+  const existing = document.getElementById('openTabsBanner');
+  if (existing) existing.remove();
+
+  const tabCount = (ws.pinnedTabs || []).length + (ws.tabs || []).length;
+  if (tabCount === 0) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'openTabsBanner';
+  banner.className = 'open-tabs-banner';
+  banner.innerHTML = `
+    <span class="open-tabs-banner__text">Open ${tabCount} saved tab${tabCount !== 1 ? 's' : ''} for <strong></strong> in a new window?</span>
+    <div class="open-tabs-banner__actions">
+      <button class="open-tabs-banner__btn open-tabs-banner__btn--confirm">Open in new window</button>
+      <button class="open-tabs-banner__btn open-tabs-banner__btn--dismiss">Dismiss</button>
+    </div>
+  `;
+  banner.querySelector('strong').textContent = ws.name;
+
+  // Insert after chip bar
+  const chipBar = document.getElementById('spacesEmojiRow');
+  if (chipBar && chipBar.nextSibling) {
+    chipBar.parentNode.insertBefore(banner, chipBar.nextSibling);
+  } else {
+    document.body.prepend(banner);
+  }
+
+  banner.querySelector('.open-tabs-banner__btn--confirm').addEventListener('click', async () => {
+    banner.remove();
+    await restoreSavedSpaceFromId(ws.id, true);
+  });
+  banner.querySelector('.open-tabs-banner__btn--dismiss').addEventListener('click', () => {
+    banner.remove();
+  });
+
+  // Auto-dismiss after 8s
+  setTimeout(() => { if (banner.isConnected) banner.remove(); }, 8000);
+}
+
 async function deleteSpace(spaceId) {
   // Remove from workspaces array
   const { workspaces = [], spaces = {}, windowIdToSpaceId = {} } = await chrome.storage.local.get(['workspaces', 'spaces', 'windowIdToSpaceId']);
@@ -1431,7 +1471,10 @@ async function loadSavedSpaces() {
         }
         if (e.button !== 0) return;
         const ws = workspaces.find(w => w.id === btn.dataset.id);
-        if (ws) await switchToSpace(ws);
+        if (ws) {
+          await switchToSpace(ws);
+          showOpenTabsBanner(ws);
+        }
       });
       btn.addEventListener('contextmenu', (e) => {
         e.preventDefault();
