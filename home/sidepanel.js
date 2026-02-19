@@ -21,6 +21,10 @@ $$('.section__header').forEach(header => {
 });
 
 // ────── Refresh All ──────
+$('#syncSpaceBtn').addEventListener('click', async () => {
+  await persistCurrentSpaceSnapshot({ showFeedback: true });
+});
+
 $('#refreshAll').addEventListener('click', () => {
   const btn = $('#refreshAll');
   btn.classList.add('spinning');
@@ -217,9 +221,15 @@ function normalizeSpace(space) {
   return {
     id: space.id,
     name: space.name || 'Unnamed',
-    emoji: typeof space.emoji === 'string' ? space.emoji.trim().slice(0, 4) : '',
+    emoji: typeof space.emoji === 'string' ? [...space.emoji.trim()].slice(0, 2).join('') : '',
     pinnedEntries: Array.isArray(space.pinnedEntries) ? space.pinnedEntries : [],
-    pinnedFolders: Array.isArray(space.pinnedFolders) ? space.pinnedFolders : [],
+    pinnedFolders: Array.isArray(space.pinnedFolders) ? space.pinnedFolders.map(f => {
+      // Migrate legacy entryIndices → entryUrls
+      if (!f.entryUrls && Array.isArray(f.entryIndices) && Array.isArray(space.pinnedEntries)) {
+        return { ...f, entryUrls: f.entryIndices.map(i => space.pinnedEntries[i] && space.pinnedEntries[i].url).filter(Boolean) };
+      }
+      return { ...f, entryUrls: Array.isArray(f.entryUrls) ? f.entryUrls : [] };
+    }) : [],
     sections: Array.isArray(space.sections) ? space.sections : ['github', 'slack', 'calendar'], // default: all sections
     theme: space.theme || {
       primary: '#6366f1',
@@ -229,7 +239,8 @@ function normalizeSpace(space) {
     },
     autoArchiveHours: space.autoArchiveHours === 24 ? 24 : 12,
     saved: !!space.saved,
-    createdAt: space.createdAt
+    createdAt: space.createdAt,
+    recentlyClosed: Array.isArray(space.recentlyClosed) ? space.recentlyClosed : []
   };
 }
 
@@ -367,11 +378,11 @@ async function loadCurrentSpace() {
   const entries = space.pinnedEntries || [];
   const folders = space.pinnedFolders || [];
   const entriesInFolders = new Set();
-  folders.forEach(f => (f.entryIndices || []).forEach(i => entriesInFolders.add(i)));
+  folders.forEach(f => (f.entryUrls || []).forEach(u => entriesInFolders.add(u)));
 
   let pinnedHtml = '';
   entries.forEach((entry, i) => {
-    if (entriesInFolders.has(i)) return;
+    if (entriesInFolders.has(entry.url)) return;
     const openTab = allTabs.find(t => t.url === entry.url);
 
     pinnedHtml += `
@@ -381,16 +392,18 @@ async function loadCurrentSpace() {
         <span class="space-entry__title">${escapeHtml(truncate(entry.title || entry.url, 40))}</span>
         ${openTab ? '<span class="space-entry__dot" title="Open"></span>' : ''}
         <button type="button" class="btn btn--ghost btn--sm space-entry-unpin" data-index="${i}" title="Unpin">×</button>
-        <button type="button" class="btn btn--ghost btn--sm space-entry-littlearc" data-url="${escapeHtml(entry.url)}" title="Open in small window">↗</button>
       </div>`;
   });
   pinnedEntriesList.innerHTML = pinnedHtml || '<div class="space-empty">No pinned entries</div>';
 
+  // Build a URL→entry map for fast lookup
+  const entryByUrl = new Map(entries.map(e => [e.url, e]));
+
   let pinnedFoldersHtml = '';
   folders.forEach((folder, fi) => {
     const collapsed = folder.collapsed;
-    const indices = folder.entryIndices || [];
-    const folderEntries = indices.map(i => entries[i]).filter(Boolean);
+    const urls = folder.entryUrls || [];
+    const folderEntries = urls.map(u => entryByUrl.get(u)).filter(Boolean);
     pinnedFoldersHtml += `
       <div class="space-folder ${collapsed ? 'space-folder--collapsed' : ''}" data-folder-index="${fi}">
         <button type="button" class="space-folder__header" data-folder-index="${fi}">
@@ -399,16 +412,15 @@ async function loadCurrentSpace() {
           <button type="button" class="btn btn--ghost btn--sm space-folder-delete" data-folder-index="${fi}" title="Delete folder">×</button>
         </button>
         <div class="space-folder__content" data-folder-index="${fi}" data-drop-zone="folder">
-          ${folderEntries.length > 0 ? folderEntries.map((entry, ei) => {
-            const idx = indices[ei];
+          ${folderEntries.length > 0 ? folderEntries.map((entry) => {
             const openTab = allTabs.find(t => t.url === entry.url);
             return `
-            <div class="space-entry space-entry--pinned" draggable="true" data-url="${escapeHtml(entry.url)}" data-index="${idx}" data-type="pinned-entry">
+            <div class="space-entry space-entry--pinned" draggable="true" data-url="${escapeHtml(entry.url)}" data-type="pinned-entry">
               <span class="space-entry__drag-handle">⋮⋮</span>
               ${entry.favIconUrl ? `<img class="space-entry__icon" src="${entry.favIconUrl}" alt="">` : '<span class="space-entry__icon"></span>'}
               <span class="space-entry__title">${escapeHtml(truncate(entry.title || entry.url, 35))}</span>
               ${openTab ? '<span class="space-entry__dot"></span>' : ''}
-              <button type="button" class="btn btn--ghost btn--sm space-entry-unpin" data-index="${idx}" title="Unpin">×</button>
+              <button type="button" class="btn btn--ghost btn--sm space-entry-unpin" data-url="${escapeHtml(entry.url)}" title="Unpin">×</button>
             </div>`;
           }).join('') : '<div class="space-empty">Drop entries here</div>'}
         </div>
@@ -458,6 +470,9 @@ async function loadCurrentSpace() {
   }
   liveFoldersList.innerHTML = liveFoldersHtml;
 
+  // Render recently closed for this space
+  renderRecentlyClosed(space.recentlyClosed || []);
+
   attachSpaceEventListeners(space, windowId, allTabs);
 }
 
@@ -468,14 +483,39 @@ async function getGroupCollapsed(groupId) {
 }
 
 /** Build snapshot from current window and space, then persist to spaces and workspaces (if saved). */
-async function persistCurrentSpaceSnapshot() {
+function updateSyncLabel(state) {
+  const btn = $('#syncSpaceBtn');
+  const label = $('#syncLabel');
+  if (!btn || !label) return;
+  if (state === 'syncing') {
+    btn.classList.add('syncing');
+    btn.classList.remove('saved');
+    label.textContent = 'Syncing…';
+  } else if (state === 'saved') {
+    btn.classList.remove('syncing');
+    btn.classList.add('saved');
+    const now = new Date();
+    label.textContent = `Saved ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+    setTimeout(() => {
+      btn.classList.remove('saved');
+      label.textContent = 'Sync';
+    }, 3000);
+  } else {
+    btn.classList.remove('syncing', 'saved');
+    label.textContent = 'Sync';
+  }
+}
+
+async function persistCurrentSpaceSnapshot({ showFeedback = false } = {}) {
   if (currentSpaceId == null || currentWindowId == null) return;
+  if (showFeedback) updateSyncLabel('syncing');
   const { space } = await getOrCreateCurrentSpace();
-  if (!space) return;
+  if (!space) { if (showFeedback) updateSyncLabel('idle'); return; }
   let tabs;
   try {
     tabs = await chrome.tabs.query({ windowId: currentWindowId });
   } catch (_) {
+    if (showFeedback) updateSyncLabel('idle');
     return;
   }
   const pinnedUrls = new Set((space.pinnedEntries || []).map(e => e.url));
@@ -518,11 +558,14 @@ async function persistCurrentSpaceSnapshot() {
       emoji: (currentSpaceData && currentSpaceData.emoji) !== undefined ? currentSpaceData.emoji : workspaces[wsIndex].emoji,
       pinnedTabs: (space.pinnedEntries || []).slice(),
       tabs: unpinnedTabs,
-      folders
+      folders,
+      lastSyncedAt: new Date().toISOString()
     };
     await chrome.storage.local.set({ workspaces, lastActiveWorkspaceId: currentSpaceId });
     loadSavedSpaces();
   }
+
+  if (showFeedback) updateSyncLabel('saved');
 }
 
 function setGroupCollapsed(groupId, collapsed) {
@@ -545,9 +588,6 @@ function attachSpaceEventListeners(space, windowId, allTabs) {
   });
   pinnedEntriesList.querySelectorAll('.space-entry-unpin').forEach(btn => {
     btn.addEventListener('click', async (e) => { e.stopPropagation(); await unpinEntry(parseInt(btn.dataset.index, 10)); });
-  });
-  pinnedEntriesList.querySelectorAll('.space-entry-littlearc').forEach(btn => {
-    btn.addEventListener('click', (e) => { e.stopPropagation(); openInLittleArc(btn.dataset.url); });
   });
   // Setup drag-and-drop
   setupDragAndDrop();
@@ -593,12 +633,12 @@ function attachSpaceEventListeners(space, windowId, allTabs) {
     });
   });
   pinnedFoldersList.querySelectorAll('.space-entry-unpin').forEach(btn => {
-    btn.addEventListener('click', async (e) => { e.stopPropagation(); await unpinEntry(parseInt(btn.dataset.index, 10)); });
+    btn.addEventListener('click', async (e) => { e.stopPropagation(); await unpinEntry(btn.dataset.url || parseInt(btn.dataset.index, 10)); });
   });
   pinnedFoldersList.querySelectorAll('.space-entry-move-out').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      await moveEntryToFolder(parseInt(btn.dataset.index, 10), -1); // -1 means move out of folder
+      await moveEntryToFolder(btn.dataset.url, -1); // -1 means move out of folder
     });
   });
 
@@ -745,47 +785,44 @@ async function handleDrop(e) {
 
   if (!draggedData) return;
 
+  // Snapshot draggedData immediately — dragend fires concurrently and nulls it
+  const data = { ...draggedData };
+
   const dropZoneType = dropZone.dataset.dropZone;
   const folderIndex = dropZone.dataset.folderIndex;
   const groupId = dropZone.dataset.groupId;
 
   // Handle different drop scenarios
-  if (draggedData.type === 'pinned-entry') {
-    const entryIndex = parseInt(draggedData.index, 10);
+  if (data.type === 'pinned-entry') {
+    const entryUrl = data.url;
 
     if (dropZoneType === 'folder') {
       // Moving pinned entry to a folder
-      await moveEntryToFolder(entryIndex, parseInt(folderIndex, 10));
+      await moveEntryToFolder(entryUrl, parseInt(folderIndex, 10));
     } else if (dropZoneType === 'pinned-section') {
       // Moving pinned entry out of folder (to main pinned section)
-      await moveEntryToFolder(entryIndex, -1);
+      await moveEntryToFolder(entryUrl, -1);
     } else if (dropZoneType === 'tabs-section' || dropZoneType === 'tabgroup') {
       // Unpinning entry (moving to tabs)
-      await unpinEntry(entryIndex);
+      await unpinEntry(entryUrl);
       // TODO: If dropping on tab group, add to group
     }
-  } else if (draggedData.type === 'live-tab') {
-    const tabId = parseInt(draggedData.tabId, 10);
+  } else if (data.type === 'live-tab') {
+    const tabId = parseInt(data.tabId, 10);
 
     if (dropZoneType === 'pinned-section' || dropZoneType === 'folder') {
-      // Pinning tab
-      await pinTab(tabId);
       if (dropZoneType === 'folder') {
-        // After pinning, move to folder
-        // Need to find the new entry index
-        const { spaces = {} } = await chrome.storage.local.get('spaces');
-        const space = spaces[currentSpaceId];
-        if (space && space.pinnedEntries) {
-          const newIndex = space.pinnedEntries.findIndex(e => e.url === draggedData.url);
-          if (newIndex >= 0) {
-            await moveEntryToFolder(newIndex, parseInt(folderIndex, 10));
-          }
-        }
+        // Pin without re-rendering, then atomically move into folder
+        await pinTab(tabId, { skipRerender: true });
+        await moveEntryToFolder(data.url, parseInt(folderIndex, 10));
+        // moveEntryToFolder handles loadCurrentSpace + schedulePersistCurrentSpace
+      } else {
+        await pinTab(tabId);
       }
     } else if (dropZoneType === 'tabgroup' && chrome.tabGroups) {
       // Moving tab to a different group
       const targetGroupId = parseInt(groupId, 10);
-      const currentGroupId = draggedData.groupId ? parseInt(draggedData.groupId, 10) : null;
+      const currentGroupId = data.groupId ? parseInt(data.groupId, 10) : null;
 
       if (targetGroupId !== currentGroupId) {
         try {
@@ -798,7 +835,7 @@ async function handleDrop(e) {
       }
     } else if (dropZoneType === 'tabs-section') {
       // Ungrouping tab (moving to main tabs section)
-      if (draggedData.groupId) {
+      if (data.groupId) {
         try {
           await chrome.tabs.ungroup(tabId);
           loadCurrentSpace();
@@ -811,7 +848,7 @@ async function handleDrop(e) {
   }
 }
 
-async function pinTab(tabId) {
+async function pinTab(tabId, { skipRerender = false } = {}) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab || !tab.url || !currentSpaceId) return;
   const { spaces = {} } = await chrome.storage.local.get('spaces');
@@ -822,22 +859,35 @@ async function pinTab(tabId) {
   space.pinnedEntries.push({ url: tab.url, title: tab.title || tab.url, favIconUrl: tab.favIconUrl || '' });
   await chrome.storage.local.set({ spaces });
   try { await chrome.tabs.update(tabId, { pinned: true }); } catch (_) {}
-  loadCurrentSpace();
-  schedulePersistCurrentSpace();
+  if (!skipRerender) {
+    loadCurrentSpace();
+    schedulePersistCurrentSpace();
+  }
 }
 
-async function unpinEntry(entryIndex) {
-  if (currentSpaceId == null || entryIndex < 0) return;
+async function unpinEntry(entryIndexOrUrl) {
+  if (!currentSpaceId) return;
   const { spaces = {} } = await chrome.storage.local.get('spaces');
   const space = spaces[currentSpaceId];
-  if (!space || !space.pinnedEntries || !space.pinnedEntries[entryIndex]) return;
-  const url = space.pinnedEntries[entryIndex].url;
+  if (!space || !space.pinnedEntries) return;
+
+  // Accept either a numeric index or a URL string
+  let entryIndex, url;
+  if (typeof entryIndexOrUrl === 'string') {
+    entryIndex = space.pinnedEntries.findIndex(e => e.url === entryIndexOrUrl);
+    url = entryIndexOrUrl;
+  } else {
+    entryIndex = entryIndexOrUrl;
+    url = space.pinnedEntries[entryIndex] ? space.pinnedEntries[entryIndex].url : null;
+  }
+  if (entryIndex < 0 || !space.pinnedEntries[entryIndex]) return;
+
   space.pinnedEntries.splice(entryIndex, 1);
   (space.pinnedFolders || []).forEach(f => {
-    f.entryIndices = (f.entryIndices || []).map(i => i > entryIndex ? i - 1 : i).filter(i => i !== entryIndex);
+    f.entryUrls = (f.entryUrls || []).filter(u => u !== url);
   });
   await chrome.storage.local.set({ spaces });
-  if (currentWindowId) {
+  if (currentWindowId && url) {
     const tabs = await chrome.tabs.query({ windowId: currentWindowId });
     const t = tabs.find(x => x.url === url);
     if (t) try { await chrome.tabs.update(t.id, { pinned: false }); } catch (_) {}
@@ -854,7 +904,7 @@ async function createPinnedFolder(name) {
   if (!space.pinnedFolders) space.pinnedFolders = [];
   space.pinnedFolders.push({
     name,
-    entryIndices: [],
+    entryUrls: [],
     collapsed: false
   });
   await chrome.storage.local.set({ spaces });
@@ -875,23 +925,25 @@ async function deletePinnedFolder(folderIndex) {
   schedulePersistCurrentSpace();
 }
 
-async function moveEntryToFolder(entryIndex, folderIndex) {
-  if (!currentSpaceId || entryIndex < 0) return;
+async function moveEntryToFolder(entryUrl, folderIndex) {
+  if (!currentSpaceId || !entryUrl) return;
   const { spaces = {} } = await chrome.storage.local.get('spaces');
   const space = spaces[currentSpaceId];
   if (!space) return;
 
   // Remove entry from all folders first
   (space.pinnedFolders || []).forEach(f => {
-    f.entryIndices = (f.entryIndices || []).filter(i => i !== entryIndex);
+    f.entryUrls = (f.entryUrls || []).filter(u => u !== entryUrl);
   });
 
   // Add to target folder (if folderIndex >= 0)
   if (folderIndex >= 0 && space.pinnedFolders && space.pinnedFolders[folderIndex]) {
-    if (!space.pinnedFolders[folderIndex].entryIndices) {
-      space.pinnedFolders[folderIndex].entryIndices = [];
+    if (!space.pinnedFolders[folderIndex].entryUrls) {
+      space.pinnedFolders[folderIndex].entryUrls = [];
     }
-    space.pinnedFolders[folderIndex].entryIndices.push(entryIndex);
+    if (!space.pinnedFolders[folderIndex].entryUrls.includes(entryUrl)) {
+      space.pinnedFolders[folderIndex].entryUrls.push(entryUrl);
+    }
   }
 
   await chrome.storage.local.set({ spaces });
@@ -949,18 +1001,63 @@ $('#newTabGroupBtn').addEventListener('click', async () => {
   await createTabGroup(name.trim());
 });
 
-$('#saveAsNewSpace').addEventListener('click', async () => {
-  const raw = window.prompt('Space name (add emoji at start if you like, e.g. 🚀 Work):', '') || '';
-  const trimmed = raw.trim();
-  if (!trimmed) return;
-  let emoji = '';
-  let name = trimmed;
-  const emojiMatch = trimmed.match(/^\p{Extended_Pictographic}+/u);
-  if (emojiMatch) {
-    emoji = emojiMatch[0].slice(0, 4);
-    name = trimmed.slice(emoji.length).trim() || trimmed;
+$('#saveAsNewSpace').addEventListener('click', () => {
+  openSpaceTemplateModal();
+});
+
+function openSpaceTemplateModal() {
+  const modal = $('#spaceTemplateModal');
+  const nameInput = $('#spaceTemplateNameInput');
+  const grid = $('#templateGrid');
+
+  // Reset state
+  nameInput.value = '';
+  delete nameInput.dataset.lastAutoFill;
+  grid.querySelectorAll('.template-card').forEach(c => c.classList.remove('template-card--selected'));
+  const blank = grid.querySelector('.template-card[data-name=""]');
+  if (blank) blank.classList.add('template-card--selected');
+
+  modal.hidden = false;
+  setTimeout(() => nameInput.focus(), 50);
+}
+
+function closeSpaceTemplateModal() {
+  $('#spaceTemplateModal').hidden = true;
+}
+
+$('#templateGrid').addEventListener('click', e => {
+  const card = e.target.closest('.template-card');
+  if (!card) return;
+  $('#templateGrid').querySelectorAll('.template-card').forEach(c => c.classList.remove('template-card--selected'));
+  card.classList.add('template-card--selected');
+  // Auto-fill name only if user hasn't typed their own
+  const nameInput = $('#spaceTemplateNameInput');
+  const tplName = card.dataset.name || '';
+  if (!nameInput.value || nameInput.value === nameInput.dataset.lastAutoFill) {
+    nameInput.value = tplName;
+    nameInput.dataset.lastAutoFill = tplName;
   }
+});
+
+$('#spaceTemplateClose').addEventListener('click', closeSpaceTemplateModal);
+$('#spaceTemplateCancel').addEventListener('click', closeSpaceTemplateModal);
+$('#spaceTemplateModal').addEventListener('click', e => {
+  if (e.target === $('#spaceTemplateModal')) closeSpaceTemplateModal();
+});
+
+$('#spaceTemplateConfirm').addEventListener('click', async () => {
+  const nameInput = $('#spaceTemplateNameInput');
+  const name = nameInput.value.trim();
+  if (!name) { nameInput.focus(); return; }
+  const selected = $('#templateGrid').querySelector('.template-card--selected');
+  const emoji = selected ? (selected.dataset.emoji || '') : '';
+  closeSpaceTemplateModal();
   await createSavedSpaceFromCurrent(name, emoji);
+});
+
+$('#spaceTemplateNameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('#spaceTemplateConfirm').click();
+  if (e.key === 'Escape') closeSpaceTemplateModal();
 });
 
 async function createSavedSpaceFromCurrent(name, emoji = '') {
@@ -1178,7 +1275,7 @@ $$('.theme-preset').forEach(btn => {
 function normalizeWorkspace(ws) {
   return {
     ...ws,
-    emoji: typeof ws.emoji === 'string' ? ws.emoji.trim().slice(0, 4) : '',
+    emoji: typeof ws.emoji === 'string' ? [...ws.emoji.trim()].slice(0, 2).join('') : '',
     pinnedTabs: Array.isArray(ws.pinnedTabs) ? ws.pinnedTabs : [],
     tabs: Array.isArray(ws.tabs) ? ws.tabs : [],
     folders: Array.isArray(ws.folders) ? ws.folders : [],
@@ -1323,6 +1420,46 @@ async function switchToSpace(ws) {
   loadSavedSpaces();
 }
 
+function showOpenTabsBanner(ws) {
+  // Remove any existing banner
+  const existing = document.getElementById('openTabsBanner');
+  if (existing) existing.remove();
+
+  const tabCount = (ws.pinnedTabs || []).length + (ws.tabs || []).length;
+  if (tabCount === 0) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'openTabsBanner';
+  banner.className = 'open-tabs-banner';
+  banner.innerHTML = `
+    <span class="open-tabs-banner__text">Open ${tabCount} saved tab${tabCount !== 1 ? 's' : ''} for <strong></strong> in a new window?</span>
+    <div class="open-tabs-banner__actions">
+      <button class="open-tabs-banner__btn open-tabs-banner__btn--confirm">Open in new window</button>
+      <button class="open-tabs-banner__btn open-tabs-banner__btn--dismiss">Dismiss</button>
+    </div>
+  `;
+  banner.querySelector('strong').textContent = ws.name;
+
+  // Insert after chip bar
+  const chipBar = document.getElementById('spacesEmojiRow');
+  if (chipBar && chipBar.nextSibling) {
+    chipBar.parentNode.insertBefore(banner, chipBar.nextSibling);
+  } else {
+    document.body.prepend(banner);
+  }
+
+  banner.querySelector('.open-tabs-banner__btn--confirm').addEventListener('click', async () => {
+    banner.remove();
+    await restoreSavedSpaceFromId(ws.id, true);
+  });
+  banner.querySelector('.open-tabs-banner__btn--dismiss').addEventListener('click', () => {
+    banner.remove();
+  });
+
+  // Auto-dismiss after 8s
+  setTimeout(() => { if (banner.isConnected) banner.remove(); }, 8000);
+}
+
 async function deleteSpace(spaceId) {
   // Remove from workspaces array
   const { workspaces = [], spaces = {}, windowIdToSpaceId = {} } = await chrome.storage.local.get(['workspaces', 'spaces', 'windowIdToSpaceId']);
@@ -1364,22 +1501,77 @@ async function loadSavedSpaces() {
       spacesEmojiRow.hidden = true;
     } else {
       spacesEmojiRow.hidden = false;
-      spacesEmojiRow.innerHTML = workspaces.map(ws => {
-        const emojiDisplay = ws.emoji || '◇';
-        return `<button type="button" class="space-pill ${ws.id === currentSpaceId ? 'space-pill--active' : ''}" data-id="${escapeHtml(ws.id)}" title="${escapeHtml(ws.name)}">${escapeHtml(emojiDisplay)}</button>`;
-      }).join('');
+      spacesEmojiRow.innerHTML = '';
+      workspaces.forEach(ws => {
+        const hasEmoji = ws.emoji && ws.emoji.trim().length > 0;
+        const tabCount = (ws.pinnedTabs || []).length + (ws.tabs || []).length;
+        const isActive = ws.id === currentSpaceId;
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = `space-chip${isActive ? ' space-chip--active' : ''}`;
+        chip.dataset.id = ws.id;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'space-chip__name';
+        nameSpan.textContent = ws.name;
+
+        if (hasEmoji) {
+          const emojiSpan = document.createElement('span');
+          emojiSpan.className = 'space-chip__emoji';
+          emojiSpan.setAttribute('aria-hidden', 'true');
+          emojiSpan.textContent = ws.emoji;
+          chip.appendChild(emojiSpan);
+        }
+        chip.appendChild(nameSpan);
+
+        if (tabCount > 0) {
+          const countSpan = document.createElement('span');
+          countSpan.className = 'space-chip__count';
+          countSpan.textContent = tabCount;
+          chip.appendChild(countSpan);
+        }
+
+        chip.insertAdjacentHTML('beforeend', `
+          <span class="space-chip__actions">
+            <span class="space-chip__action" data-chip-action="open" title="Open in new window">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </span>
+            <span class="space-chip__action space-chip__action--danger" data-chip-action="delete" title="Delete space">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </span>
+          </span>
+        `);
+
+        spacesEmojiRow.appendChild(chip);
+      });
     }
   }
 
   if (workspaces.length === 0) return;
 
-  // Space pill: left-click = switch, right-click = menu (New window, Delete)
+  // Space chips: left-click = switch, inline action buttons, right-click = full menu
   if (spacesEmojiRow) {
-    spacesEmojiRow.querySelectorAll('.space-pill').forEach(btn => {
+    spacesEmojiRow.querySelectorAll('.space-chip').forEach(btn => {
       btn.addEventListener('click', async (e) => {
+        const action = e.target.closest('[data-chip-action]');
+        if (action) {
+          e.stopPropagation();
+          const ws = workspaces.find(w => w.id === btn.dataset.id);
+          if (!ws) return;
+          if (action.dataset.chipAction === 'open') {
+            await restoreSavedSpaceFromId(ws.id, true);
+          } else if (action.dataset.chipAction === 'delete') {
+            if (!confirm(`Delete space "${ws.name}"? This cannot be undone.`)) return;
+            await deleteSpace(ws.id);
+          }
+          return;
+        }
         if (e.button !== 0) return;
         const ws = workspaces.find(w => w.id === btn.dataset.id);
-        if (ws) await switchToSpace(ws);
+        if (ws) {
+          await switchToSpace(ws);
+          showOpenTabsBanner(ws);
+        }
       });
       btn.addEventListener('contextmenu', (e) => {
         e.preventDefault();
@@ -1399,6 +1591,9 @@ function showSpacePillMenu(x, y, ws) {
   menu.className = 'space-pill-menu';
   menu.innerHTML = `
     <button type="button" class="space-pill-menu__item" data-action="new-window">Open in new window</button>
+    <button type="button" class="space-pill-menu__item" data-action="duplicate">Duplicate</button>
+    <button type="button" class="space-pill-menu__item" data-action="rename">Rename</button>
+    <div class="space-pill-menu__divider"></div>
     <button type="button" class="space-pill-menu__item space-pill-menu__item--danger" data-action="delete">Delete</button>
   `;
   menu.style.position = 'fixed';
@@ -1418,15 +1613,56 @@ function showSpacePillMenu(x, y, ws) {
     close();
     await restoreSavedSpaceFromId(ws.id, true);
   });
+  menu.querySelector('[data-action="duplicate"]').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    close();
+    await duplicateSpace(ws);
+  });
+  menu.querySelector('[data-action="rename"]').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    close();
+    const raw = prompt('Rename space:', ws.name);
+    if (!raw || !raw.trim()) return;
+    const { emoji, name } = parseEmojiName(raw.trim());
+    const { workspaces = [], spaces = {} } = await chrome.storage.local.get(['workspaces', 'spaces']);
+    const wsIdx = workspaces.findIndex(w => w.id === ws.id);
+    if (wsIdx !== -1) {
+      workspaces[wsIdx].name = name || workspaces[wsIdx].name;
+      if (emoji) workspaces[wsIdx].emoji = emoji;
+    }
+    if (spaces[ws.id]) {
+      spaces[ws.id].name = name || spaces[ws.id].name;
+      if (emoji) spaces[ws.id].emoji = emoji;
+    }
+    await chrome.storage.local.set({ workspaces, spaces });
+    loadSavedSpaces();
+    if (ws.id === currentSpaceId) loadCurrentSpace();
+  });
   menu.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
     e.stopPropagation();
     close();
-
-    // Confirm deletion
     if (!confirm(`Delete space "${ws.name}"? This cannot be undone.`)) return;
-
     await deleteSpace(ws.id);
   });
+}
+
+async function duplicateSpace(ws) {
+  const { workspaces = [] } = await chrome.storage.local.get('workspaces');
+  const copy = JSON.parse(JSON.stringify(ws));
+  copy.id = 'saved_' + Date.now();
+  copy.name = ws.name + ' (copy)';
+  copy.createdAt = new Date().toISOString();
+  workspaces.push(copy);
+  await chrome.storage.local.set({ workspaces });
+  loadSavedSpaces();
+}
+
+function parseEmojiName(input) {
+  const emojiMatch = input.match(/^(\p{Extended_Pictographic}[\uFE0F\u20D0-\u20FF]?\s*)/u);
+  if (emojiMatch) {
+    return { emoji: emojiMatch[1].trim(), name: input.slice(emojiMatch[1].length).trim() };
+  }
+  return { emoji: '', name: input };
 }
 
 async function restoreSavedSpaceFromId(workspaceId, inNewWindow) {
@@ -1465,7 +1701,7 @@ async function refreshService(service) {
     if (response && response.success) {
       cache[service] = response.data;
       statusEl.className = 'service-status service-status--connected';
-      statusEl.innerHTML = `<span class="status-dot"></span> Connected — scraped from open tab`;
+      statusEl.innerHTML = `<span class="status-dot"></span> Live`;
 
       const tabBtn = $(`.tabs__btn[data-tab="${service}"]`);
       if (tabBtn && response.data && response.data.length > 0) {
@@ -1485,14 +1721,27 @@ async function refreshService(service) {
   }
 }
 
+function setServiceCount(service, n) {
+  const el = $(`#${service}Count`);
+  if (!el) return;
+  if (n > 0) {
+    el.textContent = n;
+    el.hidden = false;
+  } else {
+    el.hidden = true;
+  }
+}
+
 function renderServiceData(service, data) {
   const listEl = $(`#${service}List`);
 
   if (!data || data.length === 0) {
+    setServiceCount(service, 0);
     renderEmptyService(service, true);
     return;
   }
 
+  setServiceCount(service, data.length);
   if (service === 'github') renderGitHub(listEl, data);
   else if (service === 'slack') renderSlack(listEl, data);
   else if (service === 'calendar') renderCalendar(listEl, data);
@@ -1506,30 +1755,44 @@ function renderGitHub(el, prs) {
   const assigned = prs.filter(p => p.section === 'assigned');
   const other = prs.filter(p => !['review-requested', 'created', 'assigned'].includes(p.section));
 
+  const groups = [
+    { key: 'review-requested', label: 'Review Requested', items: reviewRequested },
+    { key: 'created',          label: 'Your PRs',         items: yourPRs },
+    { key: 'assigned',         label: 'Assigned',         items: assigned },
+    { key: 'other',            label: 'Other',            items: other },
+  ].filter(g => g.items.length);
+
   let html = '';
-
-  if (reviewRequested.length) {
-    html += `<div class="section-label">Review Requested (${reviewRequested.length})</div>`;
-    html += reviewRequested.map(pr => prCard(pr)).join('');
-  }
-  if (yourPRs.length) {
-    html += `<div class="section-label">Your PRs (${yourPRs.length})</div>`;
-    html += yourPRs.map(pr => prCard(pr)).join('');
-  }
-  if (assigned.length) {
-    html += `<div class="section-label">Assigned (${assigned.length})</div>`;
-    html += assigned.map(pr => prCard(pr)).join('');
-  }
-  if (other.length) {
-    html += `<div class="section-label">Other (${other.length})</div>`;
-    html += other.map(pr => prCard(pr)).join('');
-  }
-
-  if (!html) {
+  if (groups.length) {
+    groups.forEach(g => {
+      const collapsed = localStorage.getItem(`prGroup_${g.key}`) === 'collapsed';
+      html += `
+        <div class="pr-group ${collapsed ? 'pr-group--collapsed' : ''}" data-group="${g.key}">
+          <button type="button" class="pr-group__header">
+            <svg class="pr-group__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="10" height="10"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="pr-group__label">${g.label}</span>
+            <span class="pr-group__count">${g.items.length}</span>
+          </button>
+          <div class="pr-group__content">
+            ${g.items.map(pr => prCard(pr)).join('')}
+          </div>
+        </div>`;
+    });
+  } else {
     html = prs.map(pr => prCard(pr)).join('');
   }
 
   el.innerHTML = html;
+
+  // Collapsible group toggle
+  el.querySelectorAll('.pr-group__header').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const group = btn.closest('.pr-group');
+      const key = group.dataset.group;
+      const isNowCollapsed = group.classList.toggle('pr-group--collapsed');
+      localStorage.setItem(`prGroup_${key}`, isNowCollapsed ? 'collapsed' : 'open');
+    });
+  });
 
   // Click to open PR
   el.querySelectorAll('.item-card').forEach(card => {
@@ -1775,6 +2038,79 @@ function schedulePersistCurrentSpace() {
   }, 250);
 }
 
+// ────── Recently Closed ──────
+const MAX_RECENT = 10;
+
+async function addRecentlyClosed(tab) {
+  if (!currentSpaceId || !tab || !tab.url) return;
+  const { spaces = {} } = await chrome.storage.local.get('spaces');
+  const space = spaces[currentSpaceId];
+  if (!space) return;
+  // Don't track if it's a pinned entry
+  if ((space.pinnedEntries || []).some(e => e.url === tab.url)) return;
+  if (!space.recentlyClosed) space.recentlyClosed = [];
+  // Remove duplicate if already present
+  space.recentlyClosed = space.recentlyClosed.filter(t => t.url !== tab.url);
+  // Prepend and cap
+  space.recentlyClosed.unshift({ url: tab.url, title: tab.title || tab.url, favIconUrl: tab.favIconUrl || '', closedAt: Date.now() });
+  space.recentlyClosed = space.recentlyClosed.slice(0, MAX_RECENT);
+  spaces[currentSpaceId] = space;
+  await chrome.storage.local.set({ spaces });
+  renderRecentlyClosed(space.recentlyClosed);
+}
+
+function renderRecentlyClosed(items) {
+  const section = $('#recentlyClosedSection');
+  const list = $('#recentlyClosedList');
+  const countEl = $('#recentlyClosedCount');
+  if (!section || !list) return;
+
+  if (!items || items.length === 0) {
+    section.hidden = true;
+    return;
+  }
+
+  section.hidden = false;
+  if (countEl) countEl.textContent = items.length;
+
+  list.innerHTML = items.map(t => `
+    <div class="recently-closed__item" data-url="${escapeHtml(t.url)}">
+      ${t.favIconUrl ? `<img src="${escapeHtml(t.favIconUrl)}" alt="">` : '<span style="width:14px;height:14px;flex-shrink:0"></span>'}
+      <span class="recently-closed__item-title" title="${escapeHtml(t.url)}">${escapeHtml(truncate(t.title || t.url, 38))}</span>
+      <button type="button" class="recently-closed__restore" data-url="${escapeHtml(t.url)}" title="Reopen">↩</button>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.recently-closed__item').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      if (e.target.closest('button')) return;
+      const url = el.dataset.url;
+      if (url && currentWindowId) await chrome.tabs.create({ url, windowId: currentWindowId }).catch(() => {});
+    });
+  });
+  list.querySelectorAll('.recently-closed__restore').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const url = btn.dataset.url;
+      if (url && currentWindowId) await chrome.tabs.create({ url, windowId: currentWindowId }).catch(() => {});
+    });
+  });
+}
+
+$('#recentlyClosedToggle').addEventListener('click', () => {
+  $('#recentlyClosedSection').classList.toggle('collapsed');
+});
+
+$('#clearRecentlyClosed').addEventListener('click', async () => {
+  if (!currentSpaceId) return;
+  const { spaces = {} } = await chrome.storage.local.get('spaces');
+  if (spaces[currentSpaceId]) {
+    spaces[currentSpaceId].recentlyClosed = [];
+    await chrome.storage.local.set({ spaces });
+    renderRecentlyClosed([]);
+  }
+});
+
 // Listen for background messages (e.g., auto-updates, TABS_CHANGED)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'SERVICE_UPDATE' && msg.service) {
@@ -1787,5 +2123,8 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
   if (msg.type === 'TABS_CHANGED' && msg.windowId != null && msg.windowId === currentWindowId) {
     loadCurrentSpace().then(() => schedulePersistCurrentSpace());
+  }
+  if (msg.type === 'TAB_CLOSED' && msg.windowId === currentWindowId) {
+    addRecentlyClosed(msg.tab);
   }
 });

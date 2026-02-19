@@ -126,31 +126,36 @@
           </div>
         </div>
       </div>
-      <div class="header__pills" id="spacesEmojiRow"></div>
+    </div>
+    <div class="header__toolbar">
       <div class="header__search">
         <input type="text" class="command-bar__input" id="commandBarInput" placeholder="Search spaces and tabs..." autocomplete="off">
         <div class="command-bar__results" id="commandBarResults" hidden></div>
       </div>
-      <div class="header__spaces">
-        <button type="button" class="btn btn--ghost btn--sm header__save" id="saveAsNewSpace" title="Save as new named space">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-            <polyline points="17 21 17 13 7 13 7 21"/>
-            <polyline points="7 3 7 9 15 9"/>
-          </svg>
-          Save as new
-        </button>
-      </div>
-      <div class="header__actions">
-        <button class="header__refresh" id="refreshAll" title="Refresh all">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <polyline points="23 4 23 10 17 10"/>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-        </button>
-      </div>
+      <button type="button" class="btn btn--ghost btn--sm header__save" id="saveAsNewSpace" title="Save as new named space">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 9 15 9"/>
+        </svg>
+        Save as new
+      </button>
+      <button type="button" class="btn btn--ghost btn--sm header__sync" id="syncSpaceBtn" title="Sync space now">
+        <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        <span class="sync-label" id="syncLabel">Sync</span>
+      </button>
+      <button class="header__refresh" id="refreshAll" title="Refresh all">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
     </div>
   </header>
+  <div class="spaces-chip-bar" id="spacesEmojiRow"></div>
 
   <!-- Spaces panel (current space: pinned + tabs) -->
   <div class="spaces-panel" data-section="spaces">
@@ -172,6 +177,17 @@
           </div>
           <div id="liveTabsList"></div>
           <div id="liveFoldersList"></div>
+        </div>
+        <div class="space-section space-section--recent" id="recentlyClosedSection" hidden>
+          <div class="space-section__label-row">
+            <button type="button" class="space-section__toggle-btn" id="recentlyClosedToggle">
+              <svg class="space-section__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><polyline points="6 9 12 15 18 9"/></svg>
+              <span class="space-section__label">Recently Closed</span>
+              <span class="space-section__count" id="recentlyClosedCount"></span>
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm" id="clearRecentlyClosed" title="Clear history">Clear</button>
+          </div>
+          <div id="recentlyClosedList" class="recently-closed__list"></div>
         </div>
       </div>
     </div>
@@ -310,6 +326,53 @@
       </div>
     </section>
   </main>
+
+  <!-- Space template modal -->
+  <div id="spaceTemplateModal" class="modal-overlay" hidden>
+    <div class="modal">
+      <div class="modal__header">
+        <span class="modal__title">New Space</span>
+        <button type="button" class="btn btn--ghost btn--sm modal__close" id="spaceTemplateClose">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__hint">Choose a template or start blank</p>
+        <div class="template-grid" id="templateGrid">
+          <button type="button" class="template-card template-card--selected" data-emoji="" data-name="">
+            <span class="template-card__emoji">⬜</span>
+            <span class="template-card__label">Blank</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="💼" data-name="Work">
+            <span class="template-card__emoji">💼</span>
+            <span class="template-card__label">Work</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="🔬" data-name="Research">
+            <span class="template-card__emoji">🔬</span>
+            <span class="template-card__label">Research</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="🏠" data-name="Personal">
+            <span class="template-card__emoji">🏠</span>
+            <span class="template-card__label">Personal</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="🎨" data-name="Design">
+            <span class="template-card__emoji">🎨</span>
+            <span class="template-card__label">Design</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="🚀" data-name="Project">
+            <span class="template-card__emoji">🚀</span>
+            <span class="template-card__label">Project</span>
+          </button>
+        </div>
+        <div class="modal__field">
+          <label class="modal__label" for="spaceTemplateNameInput">Space name</label>
+          <input type="text" id="spaceTemplateNameInput" class="modal__input" placeholder="e.g. My Space" maxlength="40">
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--ghost" id="spaceTemplateCancel">Cancel</button>
+        <button type="button" class="btn btn--primary" id="spaceTemplateConfirm">Create Space</button>
+      </div>
+    </div>
+  </div>
 
   <script src="sidepanel.js"></script>
 </body>

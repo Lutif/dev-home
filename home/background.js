@@ -237,11 +237,24 @@ function notifyTabsChanged(windowId) {
   }
 }
 
+// ────── Tab info cache (for recently-closed tracking) ──────
+const tabInfoCache = {};
+
 chrome.tabs.onCreated.addListener((tab) => {
+  if (tab.url) tabInfoCache[tab.id] = { url: tab.url, title: tab.title || tab.url, favIconUrl: tab.favIconUrl || '' };
   notifyTabsChanged(tab.windowId);
 });
 
 chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  const info = tabInfoCache[tabId];
+  if (info && info.url && !info.url.startsWith('chrome://') && !info.url.startsWith('edge://') && !removeInfo.isWindowClosing) {
+    chrome.runtime.sendMessage({
+      type: 'TAB_CLOSED',
+      windowId: removeInfo.windowId,
+      tab: info
+    }).catch(() => {});
+  }
+  delete tabInfoCache[tabId];
   notifyTabsChanged(removeInfo.windowId);
 });
 
@@ -251,6 +264,8 @@ chrome.tabs.onMoved.addListener((tabId, moveInfo) => {
 
 // ────── Auto-refresh on Tab Updates ──────
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Keep tab info cache up to date
+  if (tab.url) tabInfoCache[tab.id] = { url: tab.url, title: tab.title || tab.url, favIconUrl: tab.favIconUrl || '' };
   notifyTabsChanged(tab.windowId);
 
   if (changeInfo.status !== 'complete' || !tab.url) return;
