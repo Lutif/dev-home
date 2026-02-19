@@ -309,6 +309,53 @@
     </section>
   </main>
 
+  <!-- Space template modal -->
+  <div id="spaceTemplateModal" class="modal-overlay" hidden>
+    <div class="modal">
+      <div class="modal__header">
+        <span class="modal__title">New Space</span>
+        <button type="button" class="btn btn--ghost btn--sm modal__close" id="spaceTemplateClose">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__hint">Choose a template or start blank</p>
+        <div class="template-grid" id="templateGrid">
+          <button type="button" class="template-card template-card--selected" data-emoji="" data-name="">
+            <span class="template-card__emoji">⬜</span>
+            <span class="template-card__label">Blank</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="💼" data-name="Work">
+            <span class="template-card__emoji">💼</span>
+            <span class="template-card__label">Work</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="🔬" data-name="Research">
+            <span class="template-card__emoji">🔬</span>
+            <span class="template-card__label">Research</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="🏠" data-name="Personal">
+            <span class="template-card__emoji">🏠</span>
+            <span class="template-card__label">Personal</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="🎨" data-name="Design">
+            <span class="template-card__emoji">🎨</span>
+            <span class="template-card__label">Design</span>
+          </button>
+          <button type="button" class="template-card" data-emoji="🚀" data-name="Project">
+            <span class="template-card__emoji">🚀</span>
+            <span class="template-card__label">Project</span>
+          </button>
+        </div>
+        <div class="modal__field">
+          <label class="modal__label" for="spaceTemplateNameInput">Space name</label>
+          <input type="text" id="spaceTemplateNameInput" class="modal__input" placeholder="e.g. My Space" maxlength="40">
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--ghost" id="spaceTemplateCancel">Cancel</button>
+        <button type="button" class="btn btn--primary" id="spaceTemplateConfirm">Create Space</button>
+      </div>
+    </div>
+  </div>
+
   <script src="sidepanel.js"></script>
 </body>
 </html>

@@ -969,18 +969,63 @@ $('#newTabGroupBtn').addEventListener('click', async () => {
   await createTabGroup(name.trim());
 });
 
-$('#saveAsNewSpace').addEventListener('click', async () => {
-  const raw = window.prompt('Space name (add emoji at start if you like, e.g. 🚀 Work):', '') || '';
-  const trimmed = raw.trim();
-  if (!trimmed) return;
-  let emoji = '';
-  let name = trimmed;
-  const emojiMatch = trimmed.match(/^\p{Extended_Pictographic}+/u);
-  if (emojiMatch) {
-    emoji = emojiMatch[0].slice(0, 4);
-    name = trimmed.slice(emoji.length).trim() || trimmed;
+$('#saveAsNewSpace').addEventListener('click', () => {
+  openSpaceTemplateModal();
+});
+
+function openSpaceTemplateModal() {
+  const modal = $('#spaceTemplateModal');
+  const nameInput = $('#spaceTemplateNameInput');
+  const grid = $('#templateGrid');
+
+  // Reset state
+  nameInput.value = '';
+  delete nameInput.dataset.lastAutoFill;
+  grid.querySelectorAll('.template-card').forEach(c => c.classList.remove('template-card--selected'));
+  const blank = grid.querySelector('.template-card[data-name=""]');
+  if (blank) blank.classList.add('template-card--selected');
+
+  modal.hidden = false;
+  setTimeout(() => nameInput.focus(), 50);
+}
+
+function closeSpaceTemplateModal() {
+  $('#spaceTemplateModal').hidden = true;
+}
+
+$('#templateGrid').addEventListener('click', e => {
+  const card = e.target.closest('.template-card');
+  if (!card) return;
+  $('#templateGrid').querySelectorAll('.template-card').forEach(c => c.classList.remove('template-card--selected'));
+  card.classList.add('template-card--selected');
+  // Auto-fill name only if user hasn't typed their own
+  const nameInput = $('#spaceTemplateNameInput');
+  const tplName = card.dataset.name || '';
+  if (!nameInput.value || nameInput.value === nameInput.dataset.lastAutoFill) {
+    nameInput.value = tplName;
+    nameInput.dataset.lastAutoFill = tplName;
   }
+});
+
+$('#spaceTemplateClose').addEventListener('click', closeSpaceTemplateModal);
+$('#spaceTemplateCancel').addEventListener('click', closeSpaceTemplateModal);
+$('#spaceTemplateModal').addEventListener('click', e => {
+  if (e.target === $('#spaceTemplateModal')) closeSpaceTemplateModal();
+});
+
+$('#spaceTemplateConfirm').addEventListener('click', async () => {
+  const nameInput = $('#spaceTemplateNameInput');
+  const name = nameInput.value.trim();
+  if (!name) { nameInput.focus(); return; }
+  const selected = $('#templateGrid').querySelector('.template-card--selected');
+  const emoji = selected ? (selected.dataset.emoji || '') : '';
+  closeSpaceTemplateModal();
   await createSavedSpaceFromCurrent(name, emoji);
+});
+
+$('#spaceTemplateNameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('#spaceTemplateConfirm').click();
+  if (e.key === 'Escape') closeSpaceTemplateModal();
 });
 
 async function createSavedSpaceFromCurrent(name, emoji = '') {
