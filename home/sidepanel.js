@@ -1247,13 +1247,19 @@ $('#editSpaceSave').addEventListener('click', async () => {
 
 // Theme preset handlers
 const themePresets = {
+  // ── Light themes ──
   paper:  { primary: '#5c6bc0', background: '#f5f0e8', surface: '#faf7f2', accent: '#3f51b5' },
-  dark:   { primary: '#6366f1', background: '#0f1117', surface: '#1a1d27', accent: '#818cf8' },
-  ocean:  { primary: '#0ea5e9', background: '#0c1821', surface: '#1a2734', accent: '#38bdf8' },
-  forest: { primary: '#10b981', background: '#0a1410', surface: '#1a2821', accent: '#34d399' },
-  sunset: { primary: '#f59e0b', background: '#1a0f0a', surface: '#2b1e15', accent: '#fbbf24' },
-  rose:   { primary: '#f43f5e', background: '#1a0a0f', surface: '#2b1520', accent: '#fb7185' },
-  purple: { primary: '#a855f7', background: '#150a1a', surface: '#261a2b', accent: '#c084fc' }
+  linen:  { primary: '#b45309', background: '#fdf6ec', surface: '#fffbf5', accent: '#d97706' },
+  sage:   { primary: '#4a7c59', background: '#f0f4f0', surface: '#f7faf7', accent: '#38695a' },
+  dusk:   { primary: '#4f6eb5', background: '#eef1f7', surface: '#f5f7fc', accent: '#3b5ea6' },
+  peach:  { primary: '#c2552a', background: '#fdf0ea', surface: '#fdf6f2', accent: '#d4622e' },
+  // ── Dark themes ──
+  dark:   { primary: '#818cf8', background: '#0f1117', surface: '#1a1d27', accent: '#6366f1' },
+  ocean:  { primary: '#38bdf8', background: '#0c1821', surface: '#162534', accent: '#0ea5e9' },
+  forest: { primary: '#34d399', background: '#0d1f16', surface: '#182e20', accent: '#10b981' },
+  sunset: { primary: '#fbbf24', background: '#1c1208', surface: '#2a1e10', accent: '#f59e0b' },
+  rose:   { primary: '#fb7185', background: '#1a0d12', surface: '#2a1520', accent: '#f43f5e' },
+  purple: { primary: '#c084fc', background: '#130d1c', surface: '#221630', accent: '#a855f7' },
 };
 
 $$('.theme-preset').forEach(btn => {
