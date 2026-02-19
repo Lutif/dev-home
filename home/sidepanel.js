@@ -2117,6 +2117,381 @@ $('#clearRecentlyClosed').addEventListener('click', async () => {
   }
 });
 
+// ════════════════════════════════════
+//  IMAGE PICKER
+// ════════════════════════════════════
+
+// ── Module state ──
+let _imageDirHandle = null;        // FileSystemDirectoryHandle | null
+const _imageBlobUrls = new Set();  // blob: URLs we created (to revoke on reload)
+let _imageFileNames  = [];         // snapshot of last-rendered file names (for change detection)
+let _imagePollTimer  = null;       // setInterval handle
+
+// ── IndexedDB helpers ──
+const IDB_NAME    = 'home-image-picker';
+const IDB_VERSION = 1;
+const IDB_STORE   = 'handles';
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = (e) => {
+      e.target.result.createObjectStore(IDB_STORE, { keyPath: 'id' });
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+async function idbSaveHandle(handle) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put({ id: 'dirHandle', handle });
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+async function idbLoadHandle() {
+  try {
+    const db = await idbOpen();
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get('dirHandle');
+      req.onsuccess = (e) => resolve(e.target.result ? e.target.result.handle : null);
+      req.onerror   = (e) => reject(e.target.error);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function idbClearHandle() {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete('dirHandle');
+    tx.oncomplete = () => resolve();
+    tx.onerror    = (e) => reject(e.target.error);
+  });
+}
+
+// ── Permission helpers ──
+async function imagesQueryPermission(handle) {
+  try {
+    const perm = await handle.queryPermission({ mode: 'read' });
+    return perm === 'granted';
+  } catch { return false; }
+}
+
+async function imagesRequestPermission(handle) {
+  try {
+    const perm = await handle.requestPermission({ mode: 'read' });
+    return perm === 'granted';
+  } catch { return false; }
+}
+
+// ── Read files from directory ──
+const IMAGE_EXTS = new Set([
+  'jpg','jpeg','png','gif','webp','avif','bmp','tiff','tif',
+  'svg','ico','heic','heif'
+]);
+
+async function imagesReadFiles(handle) {
+  const files = [];
+  for await (const [, entry] of handle.entries()) {
+    if (entry.kind !== 'file') continue;
+    const ext = entry.name.split('.').pop().toLowerCase();
+    if (!IMAGE_EXTS.has(ext)) continue;
+    try {
+      const file = await entry.getFile();
+      files.push(file);
+    } catch { /* skip unreadable */ }
+  }
+  return files.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ── Blob URL management ──
+function imagesRevokeBlobUrls() {
+  _imageBlobUrls.forEach(u => URL.revokeObjectURL(u));
+  _imageBlobUrls.clear();
+}
+
+function imagesCreateBlobUrl(file) {
+  const url = URL.createObjectURL(file);
+  _imageBlobUrls.add(url);
+  return url;
+}
+
+// ── Re-encode raster to PNG via OffscreenCanvas ──
+async function imagesReencodeToPng(file) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx    = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  return canvas.convertToBlob({ type: 'image/png' });
+}
+
+// ── Copy file to clipboard ──
+async function imagesCopyToClipboard(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  try {
+    let blob;
+    if (ext === 'heic' || ext === 'heif') {
+      // HEIC not decodable by browser — cannot copy
+      throw new Error('unsupported');
+    } else {
+      // SVGs and all raster formats re-encoded to PNG via OffscreenCanvas
+      // (navigator.clipboard.write only accepts image/png reliably in Chrome)
+      blob = await imagesReencodeToPng(file);
+    }
+    await navigator.clipboard.write([
+      new ClipboardItem({ [blob.type]: blob })
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── Toast ──
+function imagesShowToast(msg) {
+  const existing = document.querySelector('.images-toast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.className = 'images-toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  el.addEventListener('animationend', (e) => {
+    if (e.animationName === 'toast-out') el.remove();
+  });
+}
+
+// ── Render ──
+function renderImages(files) {
+  const list       = $('#imagesList');
+  const countEl    = $('#imagesCount');
+  const statusEl   = $('#imagesStatus');
+
+  statusEl.className = 'service-status';
+  statusEl.innerHTML = '';
+
+  if (!_imageDirHandle) {
+    // no-folder state
+    countEl.hidden = true;
+    list.innerHTML = `
+      <div class="empty-state empty-state--compact">
+        <p>Pick a local folder to browse images</p>
+        <button type="button" class="btn btn--primary btn--sm" id="imagesPickBtn" style="margin-top:10px">
+          Choose Folder
+        </button>
+      </div>`;
+    document.getElementById('imagesPickBtn').addEventListener('click', imagesPickFolder);
+    return;
+  }
+
+  if (files === 'permission-prompt') {
+    // need user gesture to re-grant
+    countEl.hidden = true;
+    const folderName = _imageDirHandle.name;
+    list.innerHTML = `
+      <div class="empty-state empty-state--compact">
+        <p>Allow access to <strong>${escapeHtml(folderName)}</strong> to continue</p>
+        <button type="button" class="btn btn--primary btn--sm" id="imagesGrantBtn" style="margin-top:10px">
+          Grant Access
+        </button>
+      </div>`;
+    document.getElementById('imagesGrantBtn').addEventListener('click', imagesGrantAccess);
+    renderImagesToolbar();
+    return;
+  }
+
+  if (files === 'error') {
+    countEl.hidden = true;
+    list.innerHTML = `
+      <div class="empty-state empty-state--compact">
+        <p style="color:var(--red)">Could not read folder. Try picking again.</p>
+      </div>`;
+    renderImagesToolbar();
+    return;
+  }
+
+  if (files.length === 0) {
+    countEl.hidden = true;
+    list.innerHTML = `
+      <div class="empty-state empty-state--compact">
+        <p>No images found in this folder.</p>
+      </div>`;
+    renderImagesToolbar();
+    return;
+  }
+
+  // loaded — show grid
+  countEl.hidden = false;
+  countEl.textContent = files.length;
+  _imageFileNames = files.map(f => f.name); // update snapshot for poll change-detection
+
+  // Clear old DOM first (removes live <img> references), then revoke old blob URLs
+  list.innerHTML = '';
+  imagesRevokeBlobUrls();
+
+  const grid = document.createElement('div');
+  grid.className = 'images-grid';
+
+  files.forEach(file => {
+    // Create blob URLs only AFTER old ones are revoked
+    const blobUrl = imagesCreateBlobUrl(file);
+    const thumb = document.createElement('div');
+    thumb.className = 'images-thumb';
+    thumb.title = file.name;
+    thumb.innerHTML = `
+      <img src="${blobUrl}" alt="${escapeHtml(file.name)}">
+      <span class="images-thumb__name">${escapeHtml(file.name)}</span>`;
+    thumb.addEventListener('click', async () => {
+      const ok = await imagesCopyToClipboard(file);
+      if (ok) {
+        imagesShowToast('Copied to clipboard');
+        thumb.classList.add('images-thumb--copied');
+        setTimeout(() => thumb.classList.remove('images-thumb--copied'), 1000);
+      } else {
+        imagesShowToast('Could not copy — format not supported');
+      }
+    });
+    grid.appendChild(thumb);
+  });
+
+  renderImagesToolbar();
+  list.appendChild(grid);
+}
+
+function renderImagesToolbar() {
+  const list = $('#imagesList');
+  // Remove existing toolbar to avoid duplicates on re-render
+  const existing = list.querySelector('.images-toolbar');
+  if (existing) existing.remove();
+
+  const bar = document.createElement('div');
+  bar.className = 'images-toolbar';
+  bar.innerHTML = `
+    <span class="images-folder-name" title="${escapeHtml(_imageDirHandle ? _imageDirHandle.name : '')}">
+      📁 ${escapeHtml(_imageDirHandle ? _imageDirHandle.name : '')}
+    </span>
+    <button type="button" class="btn btn--ghost btn--sm" id="imagesChangeBtn">Change</button>
+    <button type="button" class="btn btn--ghost btn--sm btn--danger" id="imagesRemoveBtn" title="Remove folder">✕</button>`;
+  bar.querySelector('#imagesChangeBtn').addEventListener('click', imagesPickFolder);
+  bar.querySelector('#imagesRemoveBtn').addEventListener('click', async () => {
+    imagesStopPolling();
+    imagesRevokeBlobUrls();
+    _imageDirHandle = null;
+    _imageFileNames = [];
+    await idbClearHandle();
+    renderImages(null);
+  });
+  list.insertBefore(bar, list.firstChild);
+}
+
+// ── Pick folder (requires user gesture) ──
+async function imagesPickFolder() {
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'read' });
+    _imageDirHandle = handle;
+    await idbSaveHandle(handle);
+    await imagesLoadAndRender();
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      imagesShowToast('Could not open folder');
+    }
+  }
+}
+
+// ── Grant access after permission prompt (requires user gesture) ──
+async function imagesGrantAccess() {
+  if (!_imageDirHandle) return;
+  const granted = await imagesRequestPermission(_imageDirHandle);
+  if (granted) {
+    await imagesLoadAndRender();
+  } else {
+    imagesShowToast('Permission denied');
+  }
+}
+
+// ── Polling ──
+const IMAGES_POLL_INTERVAL = 5000; // ms
+
+function imagesStartPolling() {
+  if (_imagePollTimer) return; // already running
+  _imagePollTimer = setInterval(imagesPoll, IMAGES_POLL_INTERVAL);
+}
+
+function imagesStopPolling() {
+  if (_imagePollTimer) {
+    clearInterval(_imagePollTimer);
+    _imagePollTimer = null;
+  }
+}
+
+async function imagesPoll() {
+  if (!_imageDirHandle) { imagesStopPolling(); return; }
+
+  // Skip if no permission (don't prompt — just wait)
+  const hasPermission = await imagesQueryPermission(_imageDirHandle);
+  if (!hasPermission) return;
+
+  let files;
+  try {
+    files = await imagesReadFiles(_imageDirHandle);
+  } catch {
+    return; // silently skip on read error
+  }
+
+  // Compare file names to detect additions / deletions
+  const newNames = files.map(f => f.name);
+  const changed  = newNames.length !== _imageFileNames.length ||
+                   newNames.some((n, i) => n !== _imageFileNames[i]);
+  if (changed) {
+    renderImages(files);
+  }
+}
+
+// ── Load files and render ──
+async function imagesLoadAndRender() {
+  if (!_imageDirHandle) { imagesStopPolling(); renderImages(null); return; }
+
+  // Check permission silently first
+  const hasPermission = await imagesQueryPermission(_imageDirHandle);
+  if (!hasPermission) {
+    imagesStopPolling();
+    renderImages('permission-prompt');
+    return;
+  }
+
+  try {
+    const files = await imagesReadFiles(_imageDirHandle);
+    renderImages(files);
+    imagesStartPolling();
+  } catch {
+    imagesStopPolling();
+    renderImages('error');
+  }
+}
+
+// ── Init ──
+async function initImagePicker() {
+  // Try to restore handle from IndexedDB
+  const savedHandle = await idbLoadHandle();
+  if (savedHandle) {
+    _imageDirHandle = savedHandle;
+    await imagesLoadAndRender();
+  } else {
+    renderImages(null);
+  }
+}
+
+// Kick off image picker initialization
+initImagePicker();
+
 // Listen for background messages (e.g., auto-updates, TABS_CHANGED)
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'SERVICE_UPDATE' && msg.service) {
