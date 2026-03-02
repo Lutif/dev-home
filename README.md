@@ -2,7 +2,7 @@
 
 A productivity command center that brings GitHub PRs, Slack notifications, and Google Calendar into one unified side panel with Arc-style workspace management.
 
-![HOME](https://img.shields.io/badge/version-1.0.0-blue)
+![HOME](https://img.shields.io/badge/version-1.2.0-blue)
 ![Chrome](https://img.shields.io/badge/chrome-extension-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
