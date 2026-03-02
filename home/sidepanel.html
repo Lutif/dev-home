@@ -45,6 +45,12 @@
               <span>Calendar Events</span>
             </label>
           </div>
+          <div class="header__edit-form-row">
+            <label class="input-label">
+              <span>Auto-archive tabs inactive for (hours, 0 = off):</span>
+              <input type="number" class="input input--sm" id="editSpaceAutoArchiveHours" min="0" max="168" step="1" value="0" placeholder="0" style="width: 80px;">
+            </label>
+          </div>
           <div class="header__edit-form-divider"></div>
           <div class="theme-presets">
             <button type="button" class="theme-preset" data-preset="paper">
@@ -158,6 +164,7 @@
     <div class="header__toolbar">
       <div class="header__search">
         <input type="text" class="command-bar__input" id="commandBarInput" placeholder="Search spaces and tabs..." autocomplete="off">
+        <kbd class="kbd-hint">&#8984;K</kbd>
         <div class="command-bar__results" id="commandBarResults" hidden></div>
       </div>
       <button type="button" class="btn btn--ghost btn--sm header__save" id="saveAsNewSpace" title="Save as new named space">
@@ -183,8 +190,9 @@
       </button>
     </div>
   </header>
-  <div class="spaces-chip-bar" id="spacesEmojiRow"></div>
-
+  <div class="app-layout">
+    <nav class="spaces-sidebar" id="spacesEmojiRow"></nav>
+    <div class="app-main">
   <!-- Spaces panel (current space: pinned + tabs) -->
   <div class="spaces-panel" data-section="spaces">
     <div class="spaces-panel__body">
@@ -192,7 +200,7 @@
         <div class="space-section space-section--pinned">
           <div class="space-section__label-row">
             <span class="space-section__label">Pinned</span>
-            <button type="button" class="btn btn--ghost btn--sm" id="newPinnedFolderBtn" title="Create folder">+ Folder</button>
+            <button type="button" class="btn btn--ghost btn--sm section-menu-btn" id="pinnedSectionMenuBtn" title="Actions">···</button>
           </div>
           <div id="pinnedEntriesList"></div>
           <div id="pinnedFoldersList"></div>
@@ -200,8 +208,10 @@
         <div class="space-section space-section--tabs">
           <div class="space-section__label-row">
             <span class="space-section__label">Tabs</span>
-            <button type="button" class="btn btn--ghost btn--sm" id="newTabGroupBtn" title="Create tab group">+ Folder</button>
-            <button type="button" class="btn btn--ghost btn--sm space-new-tab" id="newTabBtn">+ New tab</button>
+            <button type="button" class="btn btn--ghost btn--sm section-search-btn" id="tabSearchToggleBtn" title="Search tabs">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+            <button type="button" class="btn btn--ghost btn--sm section-menu-btn" id="tabsSectionMenuBtn" title="Actions">···</button>
           </div>
           <div id="liveTabsList"></div>
           <div id="liveFoldersList"></div>
@@ -378,6 +388,13 @@
       </div>
     </section>
   </main>
+    </div>
+  </div>
+
+  <!-- Hidden legacy buttons referenced by JS event listeners -->
+  <button id="newTabBtn" hidden></button>
+  <button id="newPinnedFolderBtn" hidden></button>
+  <button id="newTabGroupBtn" hidden></button>
 
   <!-- Space template modal -->
   <div id="spaceTemplateModal" class="modal-overlay" hidden>
