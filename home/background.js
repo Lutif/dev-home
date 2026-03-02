@@ -294,6 +294,20 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
+// ────── Clean Up Orphaned Spaces on Window Close ──────
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  try {
+    const { windowIdToSpaceId = {} } = await chrome.storage.local.get('windowIdToSpaceId');
+    if (windowIdToSpaceId[windowId]) {
+      console.log(`[HOME] Cleaning up space mapping for closed window ${windowId}`);
+      delete windowIdToSpaceId[windowId];
+      await chrome.storage.local.set({ windowIdToSpaceId });
+    }
+  } catch (e) {
+    console.error('[HOME] Failed to clean up window mapping:', e);
+  }
+});
+
 // ────── Periodic Alarm Refresh + Auto-archive ──────
 try {
   chrome.alarms.onAlarm.addListener(async (alarm) => {

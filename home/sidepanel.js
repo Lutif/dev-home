@@ -384,17 +384,24 @@ async function loadCurrentSpace() {
   entries.forEach((entry, i) => {
     if (entriesInFolders.has(entry.url)) return;
     const openTab = allTabs.find(t => t.url === entry.url);
+    const iconHtml = entry.favIconUrl
+      ? `<img class="space-entry__icon" src="${entry.favIconUrl}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      : '';
+    const fallbackHtml = `<span class="space-entry__icon-fallback" style="${entry.favIconUrl ? 'display:none' : ''}">${getDomainInitial(entry.url)}</span>`;
 
     pinnedHtml += `
       <div class="space-entry space-entry--pinned" draggable="true" data-url="${escapeHtml(entry.url)}" data-index="${i}" data-type="pinned-entry">
         <span class="space-entry__drag-handle">⋮⋮</span>
-        ${entry.favIconUrl ? `<img class="space-entry__icon" src="${entry.favIconUrl}" alt="">` : '<span class="space-entry__icon"></span>'}
-        <span class="space-entry__title">${escapeHtml(truncate(entry.title || entry.url, 40))}</span>
+        ${iconHtml}${fallbackHtml}
+        <div class="space-entry__title-wrap">
+          <span class="space-entry__title">${escapeHtml(truncate(entry.title || entry.url, 40))}</span>
+          <span class="space-entry__domain">${escapeHtml(getDomain(entry.url))}</span>
+        </div>
         ${openTab ? '<span class="space-entry__dot" title="Open"></span>' : ''}
-        <button type="button" class="btn btn--ghost btn--sm space-entry-unpin" data-index="${i}" title="Unpin">×</button>
+        <button type="button" class="btn btn--ghost btn--sm space-entry-menu" data-index="${i}" data-url="${escapeHtml(entry.url)}" title="More">···</button>
       </div>`;
   });
-  pinnedEntriesList.innerHTML = pinnedHtml || '<div class="space-empty">No pinned entries</div>';
+  pinnedEntriesList.innerHTML = pinnedHtml || '<div class="space-empty space-empty--rich"><span class="space-empty__icon">📌</span><span class="space-empty__text">No pinned entries</span><span class="space-empty__hint">Pin tabs to keep them here</span></div>';
 
   // Build a URL→entry map for fast lookup
   const entryByUrl = new Map(entries.map(e => [e.url, e]));
@@ -412,15 +419,23 @@ async function loadCurrentSpace() {
           <button type="button" class="btn btn--ghost btn--sm space-folder-delete" data-folder-index="${fi}" title="Delete folder">×</button>
         </button>
         <div class="space-folder__content" data-folder-index="${fi}" data-drop-zone="folder">
-          ${folderEntries.length > 0 ? folderEntries.map((entry) => {
+          ${folderEntries.length > 0 ? folderEntries.map((entry, ei) => {
             const openTab = allTabs.find(t => t.url === entry.url);
+            const folderIconHtml = entry.favIconUrl
+              ? `<img class="space-entry__icon" src="${entry.favIconUrl}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+              : '';
+            const folderFallbackHtml = `<span class="space-entry__icon-fallback" style="${entry.favIconUrl ? 'display:none' : ''}">${getDomainInitial(entry.url)}</span>`;
+            const entryIdx = entries.findIndex(e => e.url === entry.url);
             return `
             <div class="space-entry space-entry--pinned" draggable="true" data-url="${escapeHtml(entry.url)}" data-type="pinned-entry">
               <span class="space-entry__drag-handle">⋮⋮</span>
-              ${entry.favIconUrl ? `<img class="space-entry__icon" src="${entry.favIconUrl}" alt="">` : '<span class="space-entry__icon"></span>'}
-              <span class="space-entry__title">${escapeHtml(truncate(entry.title || entry.url, 35))}</span>
+              ${folderIconHtml}${folderFallbackHtml}
+              <div class="space-entry__title-wrap">
+                <span class="space-entry__title">${escapeHtml(truncate(entry.title || entry.url, 35))}</span>
+                <span class="space-entry__domain">${escapeHtml(getDomain(entry.url))}</span>
+              </div>
               ${openTab ? '<span class="space-entry__dot"></span>' : ''}
-              <button type="button" class="btn btn--ghost btn--sm space-entry-unpin" data-url="${escapeHtml(entry.url)}" title="Unpin">×</button>
+              <button type="button" class="btn btn--ghost btn--sm space-entry-menu" data-index="${entryIdx >= 0 ? entryIdx : ''}" data-url="${escapeHtml(entry.url)}" title="More">···</button>
             </div>`;
           }).join('') : '<div class="space-empty">Drop entries here</div>'}
         </div>
@@ -433,16 +448,24 @@ async function loadCurrentSpace() {
   let liveHtml = '';
   ungroupedTabs.forEach(tab => {
     if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('edge://')) return;
+    const isActive = tab.active === true;
+    const tabIconHtml = tab.favIconUrl
+      ? `<img class="space-entry__icon" src="${tab.favIconUrl}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      : '';
+    const tabFallbackHtml = `<span class="space-entry__icon-fallback" style="${tab.favIconUrl ? 'display:none' : ''}">${getDomainInitial(tab.url)}</span>`;
     liveHtml += `
-      <div class="space-entry space-entry--tab" draggable="true" data-tab-id="${tab.id}" data-url="${escapeHtml(tab.url)}" data-type="live-tab">
+      <div class="space-entry space-entry--tab${isActive ? ' space-entry--active' : ''}" draggable="true" data-tab-id="${tab.id}" data-url="${escapeHtml(tab.url)}" data-type="live-tab">
+        <input type="checkbox" class="tab-checkbox" data-tab-id="${tab.id}" title="Select">
         <span class="space-entry__drag-handle">⋮⋮</span>
-        ${tab.favIconUrl ? `<img class="space-entry__icon" src="${tab.favIconUrl}" alt="">` : '<span class="space-entry__icon"></span>'}
-        <span class="space-entry__title">${escapeHtml(truncate(tab.title || tab.url, 40))}</span>
-        <button type="button" class="btn btn--ghost btn--sm space-entry-pin" data-tab-id="${tab.id}" title="Pin">📌</button>
-        <button type="button" class="btn btn--ghost btn--sm space-entry-close" data-tab-id="${tab.id}" title="Close">×</button>
+        ${tabIconHtml}${tabFallbackHtml}
+        <div class="space-entry__title-wrap">
+          <span class="space-entry__title">${escapeHtml(truncate(tab.title || tab.url, 40))}</span>
+          <span class="space-entry__domain">${escapeHtml(getDomain(tab.url))}</span>
+        </div>
+        <button type="button" class="btn btn--ghost btn--sm space-entry-menu" data-tab-id="${tab.id}" title="More actions">···</button>
       </div>`;
   });
-  liveTabsList.innerHTML = liveHtml || '<div class="space-empty">No tabs below</div>';
+  liveTabsList.innerHTML = liveHtml || '<div class="space-empty space-empty--rich"><span class="space-empty__icon">🗂️</span><span class="space-empty__text">No tabs open</span><span class="space-empty__hint">Open a tab to see it here</span></div>';
 
   let liveFoldersHtml = '';
   for (const g of groups) {
@@ -456,15 +479,24 @@ async function loadCurrentSpace() {
           <button type="button" class="btn btn--ghost btn--sm space-tabgroup-delete" data-group-id="${g.id}" title="Ungroup tabs">×</button>
         </button>
         <div class="space-folder__content" data-group-id="${g.id}" data-drop-zone="tabgroup">
-          ${groupTabs.map(tab => `
-            <div class="space-entry space-entry--tab" draggable="true" data-tab-id="${tab.id}" data-url="${escapeHtml(tab.url)}" data-type="live-tab" data-group-id="${g.id}">
+          ${groupTabs.map(tab => {
+            const isActiveGroupTab = tab.active === true;
+            const grpIconHtml = tab.favIconUrl
+              ? `<img class="space-entry__icon" src="${tab.favIconUrl}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+              : '';
+            const grpFallbackHtml = `<span class="space-entry__icon-fallback" style="${tab.favIconUrl ? 'display:none' : ''}">${getDomainInitial(tab.url)}</span>`;
+            return `
+            <div class="space-entry space-entry--tab${isActiveGroupTab ? ' space-entry--active' : ''}" draggable="true" data-tab-id="${tab.id}" data-url="${escapeHtml(tab.url)}" data-type="live-tab" data-group-id="${g.id}">
+              <input type="checkbox" class="tab-checkbox" data-tab-id="${tab.id}" title="Select">
               <span class="space-entry__drag-handle">⋮⋮</span>
-              ${tab.favIconUrl ? `<img class="space-entry__icon" src="${tab.favIconUrl}" alt="">` : '<span class="space-entry__icon"></span>'}
-              <span class="space-entry__title">${escapeHtml(truncate(tab.title || tab.url, 35))}</span>
-              <button type="button" class="btn btn--ghost btn--sm space-entry-pin" data-tab-id="${tab.id}" title="Pin">📌</button>
-              <button type="button" class="btn btn--ghost btn--sm space-entry-close" data-tab-id="${tab.id}" title="Close">×</button>
-            </div>
-          `).join('')}
+              ${grpIconHtml}${grpFallbackHtml}
+              <div class="space-entry__title-wrap">
+                <span class="space-entry__title">${escapeHtml(truncate(tab.title || tab.url, 35))}</span>
+                <span class="space-entry__domain">${escapeHtml(getDomain(tab.url))}</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--sm space-entry-menu" data-tab-id="${tab.id}" title="More actions">···</button>
+            </div>`;
+          }).join('')}
         </div>
       </div>`;
   }
@@ -508,6 +540,22 @@ function updateSyncLabel(state) {
 
 async function persistCurrentSpaceSnapshot({ showFeedback = false } = {}) {
   if (currentSpaceId == null || currentWindowId == null) return;
+
+  // Check storage quota and warn if approaching limit
+  if (navigator.storage && navigator.storage.estimate) {
+    try {
+      const estimate = await navigator.storage.estimate();
+      const usagePercent = (estimate.usage / estimate.quota) * 100;
+
+      if (usagePercent > 80) {
+        console.warn(`Storage at ${usagePercent.toFixed(1)}% capacity (${(estimate.usage / 1024 / 1024).toFixed(2)}MB used)`);
+        showStorageWarning(usagePercent, estimate.usage, estimate.quota);
+      }
+    } catch (e) {
+      console.error('Failed to check storage quota:', e);
+    }
+  }
+
   if (showFeedback) updateSyncLabel('syncing');
   const { space } = await getOrCreateCurrentSpace();
   if (!space) { if (showFeedback) updateSyncLabel('idle'); return; }
@@ -572,123 +620,157 @@ function setGroupCollapsed(groupId, collapsed) {
   chrome.storage.local.set({ ['groupCollapsed_' + groupId]: collapsed });
 }
 
+// Event delegation - set up once on page load, no memory leaks
+function setupEventDelegation() {
+  // Pinned entries list
+  if (pinnedEntriesList) {
+    pinnedEntriesList.addEventListener('click', async (e) => {
+      const menuBtn = e.target.closest('.space-entry-menu');
+      if (menuBtn && menuBtn.dataset.index !== undefined && !menuBtn.dataset.tabId) {
+        showPinnedEntryMenu(e, menuBtn.dataset.index, menuBtn.dataset.url);
+        return;
+      }
+
+      const entry = e.target.closest('.space-entry--pinned');
+      if (entry && !e.target.closest('button')) {
+        const url = entry.dataset.url;
+        if (!url) return;
+        const tabs = await chrome.tabs.query({ windowId: currentWindowId });
+        const tab = tabs.find(t => t.url === url);
+        if (tab) {
+          try {
+            await chrome.tabs.update(tab.id, { active: true });
+            await chrome.windows.update(currentWindowId, { focused: true });
+          } catch (_) {}
+        } else {
+          try {
+            await chrome.tabs.create({ url, windowId: currentWindowId });
+          } catch (_) {}
+        }
+      }
+    });
+  }
+
+  // Pinned folders list
+  if (pinnedFoldersList) {
+    pinnedFoldersList.addEventListener('click', async (e) => {
+      const deleteBtn = e.target.closest('.space-folder-delete');
+      if (deleteBtn) {
+        e.stopPropagation();
+        const fi = parseInt(deleteBtn.dataset.folderIndex, 10);
+        if (confirm('Delete this folder? (Entries will remain pinned)')) {
+          await deletePinnedFolder(fi);
+        }
+        return;
+      }
+
+      const folderHeader = e.target.closest('.space-folder__header');
+      if (folderHeader && !e.target.closest('.space-folder-delete')) {
+        const fi = parseInt(folderHeader.dataset.folderIndex, 10);
+        const { spaces = {} } = await chrome.storage.local.get('spaces');
+        const space = spaces[currentSpaceId];
+        if (space && space.pinnedFolders && space.pinnedFolders[fi]) {
+          const collapsed = !space.pinnedFolders[fi].collapsed;
+          space.pinnedFolders[fi].collapsed = collapsed;
+          await chrome.storage.local.set({ spaces });
+          loadCurrentSpace();
+        }
+        return;
+      }
+
+      const menuBtn = e.target.closest('.space-entry-menu');
+      if (menuBtn && !menuBtn.dataset.tabId) {
+        showPinnedEntryMenu(e, menuBtn.dataset.index, menuBtn.dataset.url);
+        return;
+      }
+
+      const moveOutBtn = e.target.closest('.space-entry-move-out');
+      if (moveOutBtn) {
+        e.stopPropagation();
+        await moveEntryToFolder(moveOutBtn.dataset.url, -1);
+        return;
+      }
+
+      const entry = e.target.closest('.space-entry--pinned');
+      if (entry && !e.target.closest('button')) {
+        const url = entry.dataset.url;
+        if (!url) return;
+        const tabs = await chrome.tabs.query({ windowId: currentWindowId });
+        const tab = tabs.find(t => t.url === url);
+        if (tab) {
+          try {
+            await chrome.tabs.update(tab.id, { active: true });
+            await chrome.windows.update(currentWindowId, { focused: true });
+          } catch (_) {}
+        } else {
+          try {
+            await chrome.tabs.create({ url, windowId: currentWindowId });
+          } catch (_) {}
+        }
+      }
+    });
+  }
+
+  // Live tabs list
+  if (liveTabsList) {
+    liveTabsList.addEventListener('click', async (e) => {
+      const menuBtn = e.target.closest('.space-entry-menu');
+      if (menuBtn && menuBtn.dataset.tabId) {
+        showTabEntryMenu(e, menuBtn.dataset.tabId, menuBtn.closest('.space-entry--tab')?.dataset.url || '');
+        return;
+      }
+
+      const entry = e.target.closest('.space-entry--tab');
+      if (entry && !e.target.closest('button') && !e.target.classList.contains('tab-checkbox')) {
+        const tabId = parseInt(entry.dataset.tabId, 10);
+        if (tabId) chrome.tabs.update(tabId, { active: true }).catch(() => {});
+      }
+    });
+  }
+
+  // Live folders list (tab groups)
+  if (liveFoldersList) {
+    liveFoldersList.addEventListener('click', async (e) => {
+      const deleteBtn = e.target.closest('.space-tabgroup-delete');
+      if (deleteBtn) {
+        e.stopPropagation();
+        if (confirm('Ungroup these tabs?')) {
+          await deleteTabGroup(deleteBtn.dataset.groupId);
+        }
+        return;
+      }
+
+      const groupHeader = e.target.closest('.space-folder__header--live');
+      if (groupHeader && !e.target.closest('.space-tabgroup-delete')) {
+        const gid = groupHeader.dataset.groupId;
+        if (gid) {
+          const collapsed = await getGroupCollapsed(gid);
+          await setGroupCollapsed(gid, !collapsed);
+          loadCurrentSpace();
+        }
+        return;
+      }
+
+      const menuBtn = e.target.closest('.space-entry-menu');
+      if (menuBtn && menuBtn.dataset.tabId) {
+        showTabEntryMenu(e, menuBtn.dataset.tabId, menuBtn.closest('.space-entry--tab')?.dataset.url || '');
+        return;
+      }
+
+      const entry = e.target.closest('.space-entry--tab');
+      if (entry && !e.target.closest('button') && !e.target.classList.contains('tab-checkbox')) {
+        const tabId = parseInt(entry.dataset.tabId, 10);
+        if (tabId) chrome.tabs.update(tabId, { active: true }).catch(() => {});
+      }
+    });
+  }
+}
+
+// OLD function - now replaced by setupEventDelegation (called once on load)
+// This prevents memory leaks from listeners being reattached on every render
 function attachSpaceEventListeners(space, windowId, allTabs) {
-  pinnedEntriesList.querySelectorAll('.space-entry--pinned').forEach(el => {
-    el.addEventListener('click', async (e) => {
-      if (e.target.closest('button')) return;
-          const url = el.dataset.url;
-          if (!url) return;
-          const tab = allTabs.find(t => t.url === url);
-          if (tab) {
-            try { await chrome.tabs.update(tab.id, { active: true }); await chrome.windows.update(windowId, { focused: true }); } catch (_) {}
-          } else {
-            try { await chrome.tabs.create({ url, windowId }); } catch (_) {}
-          }
-    });
-  });
-  pinnedEntriesList.querySelectorAll('.space-entry-unpin').forEach(btn => {
-    btn.addEventListener('click', async (e) => { e.stopPropagation(); await unpinEntry(parseInt(btn.dataset.index, 10)); });
-  });
-  // Setup drag-and-drop
+  // Just setup drag-and-drop (still needs to be called on render for new elements)
   setupDragAndDrop();
-
-  pinnedFoldersList.querySelectorAll('.space-folder__header').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      // Don't toggle if clicking delete button
-      if (e.target.closest('.space-folder-delete')) return;
-
-      const fi = parseInt(btn.dataset.folderIndex, 10);
-      const folder = (space.pinnedFolders || [])[fi];
-      if (!folder) return;
-      const collapsed = !folder.collapsed;
-      const { spaces = {} } = await chrome.storage.local.get('spaces');
-      if (spaces[currentSpaceId]) {
-        if (!spaces[currentSpaceId].pinnedFolders) spaces[currentSpaceId].pinnedFolders = [];
-        spaces[currentSpaceId].pinnedFolders[fi] = { ...folder, collapsed };
-        await chrome.storage.local.set({ spaces });
-      }
-      loadCurrentSpace();
-    });
-  });
-  pinnedFoldersList.querySelectorAll('.space-folder-delete').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const fi = parseInt(btn.dataset.folderIndex, 10);
-      if (confirm('Delete this folder? (Entries will remain pinned)')) {
-        await deletePinnedFolder(fi);
-      }
-    });
-  });
-  pinnedFoldersList.querySelectorAll('.space-entry--pinned').forEach(el => {
-    el.addEventListener('click', async (e) => {
-      if (e.target.closest('button')) return;
-          const url = el.dataset.url;
-          if (!url) return;
-          const tab = allTabs.find(t => t.url === url);
-          if (tab) {
-            try { await chrome.tabs.update(tab.id, { active: true }); await chrome.windows.update(windowId, { focused: true }); } catch (_) {}
-          } else {
-            try { await chrome.tabs.create({ url, windowId }); } catch (_) {}
-          }
-    });
-  });
-  pinnedFoldersList.querySelectorAll('.space-entry-unpin').forEach(btn => {
-    btn.addEventListener('click', async (e) => { e.stopPropagation(); await unpinEntry(btn.dataset.url || parseInt(btn.dataset.index, 10)); });
-  });
-  pinnedFoldersList.querySelectorAll('.space-entry-move-out').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await moveEntryToFolder(btn.dataset.url, -1); // -1 means move out of folder
-    });
-  });
-
-  liveTabsList.querySelectorAll('.space-entry--tab').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
-      const tabId = parseInt(el.dataset.tabId, 10);
-      if (tabId) chrome.tabs.update(tabId, { active: true }).catch(() => {});
-    });
-  });
-  liveTabsList.querySelectorAll('.space-entry-pin').forEach(btn => {
-    btn.addEventListener('click', async (e) => { e.stopPropagation(); await pinTab(parseInt(btn.dataset.tabId, 10)); });
-  });
-  liveTabsList.querySelectorAll('.space-entry-close').forEach(btn => {
-    btn.addEventListener('click', async (e) => { e.stopPropagation(); try { await chrome.tabs.remove(parseInt(btn.dataset.tabId, 10)); } catch (_) {} loadCurrentSpace(); });
-  });
-
-  liveFoldersList.querySelectorAll('.space-folder__header--live').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      // Don't toggle if clicking delete button
-      if (e.target.closest('.space-tabgroup-delete')) return;
-
-      const gid = btn.dataset.groupId;
-      if (!gid) return;
-      const collapsed = await getGroupCollapsed(gid);
-      await setGroupCollapsed(gid, !collapsed);
-      loadCurrentSpace();
-    });
-  });
-  liveFoldersList.querySelectorAll('.space-tabgroup-delete').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (confirm('Ungroup these tabs?')) {
-        await deleteTabGroup(btn.dataset.groupId);
-      }
-    });
-  });
-  liveFoldersList.querySelectorAll('.space-entry--tab').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
-      const tabId = parseInt(el.dataset.tabId, 10);
-      if (tabId) chrome.tabs.update(tabId, { active: true }).catch(() => {});
-    });
-  });
-  liveFoldersList.querySelectorAll('.space-entry-pin').forEach(btn => {
-    btn.addEventListener('click', async (e) => { e.stopPropagation(); await pinTab(parseInt(btn.dataset.tabId, 10)); });
-  });
-  liveFoldersList.querySelectorAll('.space-entry-close').forEach(btn => {
-    btn.addEventListener('click', async (e) => { e.stopPropagation(); try { await chrome.tabs.remove(parseInt(btn.dataset.tabId, 10)); } catch (_) {} loadCurrentSpace(); });
-  });
 }
 
 let draggedElement = null;
@@ -805,7 +887,23 @@ async function handleDrop(e) {
     } else if (dropZoneType === 'tabs-section' || dropZoneType === 'tabgroup') {
       // Unpinning entry (moving to tabs)
       await unpinEntry(entryUrl);
-      // TODO: If dropping on tab group, add to group
+
+      // If dropping on tab group, add to that group
+      if (dropZoneType === 'tabgroup' && chrome.tabGroups) {
+        const targetGroupId = parseInt(groupId, 10);
+        try {
+          // Find the tab by URL (after unpinning)
+          const tabs = await chrome.tabs.query({ windowId: currentWindowId });
+          const tab = tabs.find(t => t.url === entryUrl);
+          if (tab) {
+            await chrome.tabs.group({ tabIds: tab.id, groupId: targetGroupId });
+            loadCurrentSpace();
+            schedulePersistCurrentSpace();
+          }
+        } catch (e) {
+          console.error('Failed to add unpinned tab to group:', e);
+        }
+      }
     }
   } else if (data.type === 'live-tab') {
     const tabId = parseInt(data.tabId, 10);
@@ -855,13 +953,57 @@ async function pinTab(tabId, { skipRerender = false } = {}) {
   const space = spaces[currentSpaceId];
   if (!space) return;
   if (!space.pinnedEntries) space.pinnedEntries = [];
-  if (space.pinnedEntries.some(e => e.url === tab.url)) return;
+
+  // Check for duplicates and notify user
+  if (space.pinnedEntries.some(e => e.url === tab.url)) {
+    console.log('[HOME] Tab already pinned:', tab.url);
+    showTempNotification('Already pinned to this space');
+    return;
+  }
   space.pinnedEntries.push({ url: tab.url, title: tab.title || tab.url, favIconUrl: tab.favIconUrl || '' });
   await chrome.storage.local.set({ spaces });
   try { await chrome.tabs.update(tabId, { pinned: true }); } catch (_) {}
   if (!skipRerender) {
     loadCurrentSpace();
     schedulePersistCurrentSpace();
+  }
+}
+
+async function closeTab(tabId) {
+  try {
+    // Get tab info before closing for undo
+    const tab = await chrome.tabs.get(tabId);
+    const tabInfo = {
+      url: tab.url,
+      title: tab.title,
+      favIconUrl: tab.favIconUrl,
+      index: tab.index,
+      pinned: tab.pinned
+    };
+
+    // Close the tab
+    await chrome.tabs.remove(tabId);
+
+    // Add undo operation
+    undoManager.push({
+      type: 'close tab',
+      data: { tabInfo, windowId: currentWindowId },
+      undo: async () => {
+        if (currentWindowId) {
+          await chrome.tabs.create({
+            url: tabInfo.url,
+            windowId: currentWindowId,
+            index: tabInfo.index,
+            pinned: tabInfo.pinned
+          });
+          loadCurrentSpace();
+        }
+      }
+    });
+
+    loadCurrentSpace();
+  } catch (e) {
+    console.error('Failed to close tab:', e);
   }
 }
 
@@ -882,6 +1024,15 @@ async function unpinEntry(entryIndexOrUrl) {
   }
   if (entryIndex < 0 || !space.pinnedEntries[entryIndex]) return;
 
+  // Save for undo
+  const removedEntry = { ...space.pinnedEntries[entryIndex] };
+  const removedFromFolders = [];
+  (space.pinnedFolders || []).forEach((f, fi) => {
+    if (f.entryUrls && f.entryUrls.includes(url)) {
+      removedFromFolders.push(fi);
+    }
+  });
+
   space.pinnedEntries.splice(entryIndex, 1);
   (space.pinnedFolders || []).forEach(f => {
     f.entryUrls = (f.entryUrls || []).filter(u => u !== url);
@@ -892,6 +1043,32 @@ async function unpinEntry(entryIndexOrUrl) {
     const t = tabs.find(x => x.url === url);
     if (t) try { await chrome.tabs.update(t.id, { pinned: false }); } catch (_) {}
   }
+
+  // Add undo operation
+  undoManager.push({
+    type: 'unpin entry',
+    data: { spaceId: currentSpaceId, entry: removedEntry, index: entryIndex, folders: removedFromFolders },
+    undo: async () => {
+      const { spaces = {} } = await chrome.storage.local.get('spaces');
+      const sp = spaces[currentSpaceId];
+      if (sp) {
+        if (!sp.pinnedEntries) sp.pinnedEntries = [];
+        sp.pinnedEntries.splice(entryIndex, 0, removedEntry);
+        // Restore to folders
+        removedFromFolders.forEach(fi => {
+          if (sp.pinnedFolders && sp.pinnedFolders[fi]) {
+            if (!sp.pinnedFolders[fi].entryUrls) sp.pinnedFolders[fi].entryUrls = [];
+            if (!sp.pinnedFolders[fi].entryUrls.includes(removedEntry.url)) {
+              sp.pinnedFolders[fi].entryUrls.push(removedEntry.url);
+            }
+          }
+        });
+        await chrome.storage.local.set({ spaces });
+        loadCurrentSpace();
+      }
+    }
+  });
+
   loadCurrentSpace();
   schedulePersistCurrentSpace();
 }
@@ -1169,6 +1346,10 @@ $('#editCurrentSpace').addEventListener('click', async (e) => {
   $('#editSpaceSectionSlack').checked = sections.includes('slack');
   $('#editSpaceSectionCalendar').checked = sections.includes('calendar');
 
+  // Set auto-archive hours
+  const autoArchiveHours = space.autoArchiveHours || 0;
+  if ($('#editSpaceAutoArchiveHours')) $('#editSpaceAutoArchiveHours').value = autoArchiveHours;
+
   // Set theme colors
   const theme = space.theme || { primary: '#5c6bc0', background: '#f5f0e8', surface: '#faf7f2', accent: '#3f51b5' };
   if ($('#editSpaceThemePrimary')) $('#editSpaceThemePrimary').value = theme.primary;
@@ -1224,6 +1405,9 @@ $('#editSpaceSave').addEventListener('click', async () => {
     accent: $('#editSpaceThemeAccent')?.value || '#818cf8'
   };
 
+  // Get auto-archive hours
+  const autoArchiveHours = parseInt($('#editSpaceAutoArchiveHours')?.value || '0', 10);
+
   const { spaces = {}, workspaces = [] } = await chrome.storage.local.get(['spaces', 'workspaces']);
   const space = spaces[currentSpaceId];
   if (space) {
@@ -1231,6 +1415,7 @@ $('#editSpaceSave').addEventListener('click', async () => {
     space.emoji = emoji;
     space.sections = sections;
     space.theme = theme;
+    space.autoArchiveHours = autoArchiveHours;
   }
   const wsIndex = workspaces.findIndex(w => w.id === currentSpaceId);
   if (wsIndex >= 0) {
@@ -1238,6 +1423,7 @@ $('#editSpaceSave').addEventListener('click', async () => {
     workspaces[wsIndex].emoji = emoji;
     workspaces[wsIndex].sections = sections;
     workspaces[wsIndex].theme = theme;
+    workspaces[wsIndex].autoArchiveHours = autoArchiveHours;
   }
   await chrome.storage.local.set({ spaces, workspaces });
   if (editSpaceForm) editSpaceForm.hidden = true;
@@ -1342,13 +1528,32 @@ async function restoreSavedSpace(ws, inNewWindow) {
 
   win = await chrome.windows.getLastFocused();
   const existing = await chrome.tabs.query({ windowId: win.id });
-  const ids = existing.map(t => t.id).filter(Boolean);
-  if (ids.length) await chrome.tabs.remove(ids);
+  const existingIds = existing.map(t => t.id).filter(Boolean);
 
   const createdIds = [];
-  for (const tab of allTabs) {
+
+  // SAFE APPROACH: Create first tab BEFORE removing any tabs
+  if (allTabs.length > 0 && allTabs[0].url) {
+    const firstTab = await chrome.tabs.create({
+      url: allTabs[0].url,
+      windowId: win.id
+    });
+    createdIds.push(firstTab.id);
+  }
+
+  // Now safe to remove old tabs (Chrome won't close because we have ≥1 tab)
+  if (existingIds.length > 0) {
+    await chrome.tabs.remove(existingIds);
+  }
+
+  // Create remaining tabs
+  for (let i = 1; i < allTabs.length; i++) {
+    const tab = allTabs[i];
     if (!tab.url) continue;
-    const created = await chrome.tabs.create({ url: tab.url, windowId: win.id });
+    const created = await chrome.tabs.create({
+      url: tab.url,
+      windowId: win.id
+    });
     createdIds.push(created.id);
   }
   const pinnedCount = pinnedList.length;
@@ -1396,34 +1601,18 @@ async function switchToSpace(ws) {
   const win = await chrome.windows.getLastFocused();
   if (!win || win.id == null) return;
 
-  // Update the window-to-space mapping (don't close tabs, just switch the space association)
-  const { spaces = {}, windowIdToSpaceId = {} } = await chrome.storage.local.get(['spaces', 'windowIdToSpaceId']);
-
-  // If space doesn't exist in spaces storage, create it from workspace
-  if (!spaces[ws.id]) {
-    spaces[ws.id] = {
-      id: ws.id,
-      name: ws.name,
-      emoji: ws.emoji || '',
-      pinnedEntries: (ws.pinnedTabs || []).slice(),
-      pinnedFolders: [],
-      autoArchiveHours: 12,
-      saved: true,
-      createdAt: ws.createdAt || new Date().toISOString()
-    };
+  // IMPORTANT: Save the current space's tabs BEFORE switching
+  // This prevents the old space's tabs from being saved to the new space
+  if (currentSpaceId) {
+    await persistCurrentSpaceSnapshot({ showFeedback: false });
   }
 
-  // Update window-to-space mapping
-  windowIdToSpaceId[win.id] = ws.id;
-  await chrome.storage.local.set({ spaces, windowIdToSpaceId, lastActiveWorkspaceId: ws.id });
+  // Immediately load the new space's tabs in current window (Arc-like behavior)
+  // This prevents the dangerous window where currentSpaceId != actual tabs
+  await restoreSavedSpaceFromId(ws.id, false);
 
-  // Update current state
-  currentSpaceId = ws.id;
-  currentWindowId = win.id;
-
-  // Reload UI to show the new space
-  loadCurrentSpace();
-  loadSavedSpaces();
+  // Note: restoreSavedSpace already updates currentSpaceId, windowIdToSpaceId,
+  // and calls loadCurrentSpace() and loadSavedSpaces(), so we're done!
 }
 
 function showOpenTabsBanner(ws) {
@@ -1438,9 +1627,10 @@ function showOpenTabsBanner(ws) {
   banner.id = 'openTabsBanner';
   banner.className = 'open-tabs-banner';
   banner.innerHTML = `
-    <span class="open-tabs-banner__text">Open ${tabCount} saved tab${tabCount !== 1 ? 's' : ''} for <strong></strong> in a new window?</span>
+    <span class="open-tabs-banner__text">Open ${tabCount} saved tab${tabCount !== 1 ? 's' : ''} for <strong></strong>?</span>
     <div class="open-tabs-banner__actions">
-      <button class="open-tabs-banner__btn open-tabs-banner__btn--confirm">Open in new window</button>
+      <button class="open-tabs-banner__btn open-tabs-banner__btn--current">Current window</button>
+      <button class="open-tabs-banner__btn open-tabs-banner__btn--new">New window</button>
       <button class="open-tabs-banner__btn open-tabs-banner__btn--dismiss">Dismiss</button>
     </div>
   `;
@@ -1454,9 +1644,21 @@ function showOpenTabsBanner(ws) {
     document.body.prepend(banner);
   }
 
-  banner.querySelector('.open-tabs-banner__btn--confirm').addEventListener('click', async () => {
+  banner.querySelector('.open-tabs-banner__btn--current').addEventListener('click', async () => {
     banner.remove();
-    await restoreSavedSpaceFromId(ws.id, true);
+    // Save current space's tabs before switching to prevent data contamination
+    if (currentSpaceId && currentSpaceId !== ws.id) {
+      await persistCurrentSpaceSnapshot({ showFeedback: false });
+    }
+    await restoreSavedSpaceFromId(ws.id, false);  // false = current window
+  });
+  banner.querySelector('.open-tabs-banner__btn--new').addEventListener('click', async () => {
+    banner.remove();
+    // Save current space's tabs before opening in new window
+    if (currentSpaceId && currentSpaceId !== ws.id) {
+      await persistCurrentSpaceSnapshot({ showFeedback: false });
+    }
+    await restoreSavedSpaceFromId(ws.id, true);  // true = new window
   });
   banner.querySelector('.open-tabs-banner__btn--dismiss').addEventListener('click', () => {
     banner.remove();
@@ -1464,6 +1666,59 @@ function showOpenTabsBanner(ws) {
 
   // Auto-dismiss after 8s
   setTimeout(() => { if (banner.isConnected) banner.remove(); }, 8000);
+}
+
+function showTempNotification(message, duration = 2500) {
+  const existing = document.getElementById('tempNotification');
+  if (existing) existing.remove();
+  const n = document.createElement('div');
+  n.id = 'tempNotification';
+  n.className = 'toast';
+  n.textContent = message;
+  document.body.appendChild(n);
+  setTimeout(() => {
+    if (n.isConnected) { n.classList.add('toast--out'); setTimeout(() => n.remove(), 300); }
+  }, duration);
+}
+
+function showStorageWarning(usagePercent, usageBytes, quotaBytes) {
+  // Don't show if already shown recently
+  const lastShown = sessionStorage.getItem('storageWarningShown');
+  if (lastShown && Date.now() - parseInt(lastShown) < 60 * 60 * 1000) return; // Once per hour
+
+  // Remove any existing warning
+  const existing = document.getElementById('storageWarningBanner');
+  if (existing) existing.remove();
+
+  const usageMB = (usageBytes / 1024 / 1024).toFixed(2);
+  const quotaMB = (quotaBytes / 1024 / 1024).toFixed(2);
+
+  const banner = document.createElement('div');
+  banner.id = 'storageWarningBanner';
+  banner.className = 'open-tabs-banner';
+  banner.style.borderLeft = '4px solid #f59e0b'; // Warning color
+  banner.innerHTML = `
+    <span class="open-tabs-banner__text">⚠️ Storage at ${usagePercent.toFixed(1)}% capacity (${usageMB}MB / ${quotaMB}MB). Consider deleting old workspaces.</span>
+    <div class="open-tabs-banner__actions">
+      <button class="open-tabs-banner__btn open-tabs-banner__btn--dismiss">Dismiss</button>
+    </div>
+  `;
+
+  // Insert at top
+  const chipBar = document.getElementById('spacesEmojiRow');
+  if (chipBar && chipBar.nextSibling) {
+    chipBar.parentNode.insertBefore(banner, chipBar.nextSibling);
+  } else {
+    document.body.prepend(banner);
+  }
+
+  banner.querySelector('.open-tabs-banner__btn--dismiss').addEventListener('click', () => {
+    banner.remove();
+    sessionStorage.setItem('storageWarningShown', Date.now().toString());
+  });
+
+  // Auto-dismiss after 15s
+  setTimeout(() => { if (banner.isConnected) banner.remove(); }, 15000);
 }
 
 async function deleteSpace(spaceId) {
@@ -1516,6 +1771,7 @@ async function loadSavedSpaces() {
         chip.type = 'button';
         chip.className = `space-chip${isActive ? ' space-chip--active' : ''}`;
         chip.dataset.id = ws.id;
+        chip.dataset.name = ws.name;
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'space-chip__name';
@@ -1576,7 +1832,7 @@ async function loadSavedSpaces() {
         const ws = workspaces.find(w => w.id === btn.dataset.id);
         if (ws) {
           await switchToSpace(ws);
-          showOpenTabsBanner(ws);
+          // Banner removed - tabs now switch immediately (Arc-like behavior)
         }
       });
       btn.addEventListener('contextmenu', (e) => {
@@ -1586,6 +1842,18 @@ async function loadSavedSpaces() {
         showSpacePillMenu(e.clientX, e.clientY, ws);
       });
     });
+
+    // Add new-space button if not already present
+    if (!document.getElementById('sidebarNewSpaceBtn')) {
+      const newBtn = document.createElement('button');
+      newBtn.id = 'sidebarNewSpaceBtn';
+      newBtn.type = 'button';
+      newBtn.className = 'sidebar-new-btn';
+      newBtn.title = 'New Space';
+      newBtn.textContent = '+';
+      newBtn.addEventListener('click', openSpaceTemplateModal);
+      spacesEmojiRow.appendChild(newBtn);
+    }
   }
 }
 
@@ -1599,6 +1867,7 @@ function showSpacePillMenu(x, y, ws) {
     <button type="button" class="space-pill-menu__item" data-action="new-window">Open in new window</button>
     <button type="button" class="space-pill-menu__item" data-action="duplicate">Duplicate</button>
     <button type="button" class="space-pill-menu__item" data-action="rename">Rename</button>
+    <button type="button" class="space-pill-menu__item" data-action="export">Export</button>
     <div class="space-pill-menu__divider"></div>
     <button type="button" class="space-pill-menu__item space-pill-menu__item--danger" data-action="delete">Delete</button>
   `;
@@ -1644,6 +1913,11 @@ function showSpacePillMenu(x, y, ws) {
     loadSavedSpaces();
     if (ws.id === currentSpaceId) loadCurrentSpace();
   });
+  menu.querySelector('[data-action="export"]').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    close();
+    exportSpace(ws);
+  });
   menu.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
     e.stopPropagation();
     close();
@@ -1661,6 +1935,68 @@ async function duplicateSpace(ws) {
   workspaces.push(copy);
   await chrome.storage.local.set({ workspaces });
   loadSavedSpaces();
+}
+
+function exportSpace(ws) {
+  const blob = new Blob([JSON.stringify([ws], null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `home-space-${ws.name.replace(/[^a-z0-9]/gi, '-')}-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportAllWorkspaces() {
+  const { workspaces = [] } = await chrome.storage.local.get('workspaces');
+  const blob = new Blob([JSON.stringify(workspaces, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `home-all-workspaces-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importWorkspaces() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.addEventListener('change', async (e) => {
+    try {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const text = await file.text();
+      const imported = JSON.parse(text);
+
+      if (!Array.isArray(imported)) {
+        alert('Invalid file format. Expected an array of workspaces.');
+        return;
+      }
+
+      const { workspaces = [] } = await chrome.storage.local.get('workspaces');
+
+      // Check for duplicates and rename if needed
+      imported.forEach(ws => {
+        const existingIds = workspaces.map(w => w.id);
+        if (existingIds.includes(ws.id)) {
+          ws.id = 'saved_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          ws.name = ws.name + ' (imported)';
+        }
+      });
+
+      workspaces.push(...imported);
+      await chrome.storage.local.set({ workspaces });
+      loadSavedSpaces();
+
+      alert(`Successfully imported ${imported.length} workspace${imported.length !== 1 ? 's' : ''}`);
+    } catch (e) {
+      console.error('Import failed:', e);
+      alert('Failed to import workspaces: ' + e.message);
+    }
+  });
+  input.click();
 }
 
 function parseEmojiName(input) {
@@ -1825,7 +2161,7 @@ function prCard(pr) {
       <div class="item-card__meta">
         <span class="item-card__badge ${badgeClass}">${badgeText}</span>
         <span>${escapeHtml(pr.repo || '')}</span>
-        ${pr.time ? `<span>${escapeHtml(pr.time)}</span>` : ''}
+        ${pr.time ? `<span>${timeAgo(pr.time)}</span>` : ''}
         ${pr.comments ? `<span>💬 ${pr.comments}</span>` : ''}
       </div>
     </div>`;
@@ -1929,6 +2265,23 @@ function openInLittleArc(url) {
 }
 
 // ────── Utilities ──────
+function getDomainInitial(url) {
+  try { return new URL(url).hostname.replace('www.','')[0].toUpperCase(); } catch { return '?'; }
+}
+function getDomain(url) {
+  try { return new URL(url).hostname.replace('www.',''); } catch { return ''; }
+}
+function renderSkeletonCards(count = 3) {
+  return Array.from({length: count}, () => `
+    <div class="skeleton-card">
+      <div class="skeleton skeleton--icon"></div>
+      <div class="skeleton-card__body">
+        <div class="skeleton skeleton--title"></div>
+        <div class="skeleton skeleton--meta"></div>
+      </div>
+    </div>`).join('');
+}
+
 function sendMessageWithTimeout(message, timeoutMs) {
   return Promise.race([
     chrome.runtime.sendMessage(message),
@@ -1948,15 +2301,16 @@ function truncate(str, len) {
   return str.length > len ? str.slice(0, len) + '…' : str;
 }
 
-function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+function timeAgo(str) {
+  if (!str) return '';
+  const d = new Date(str);
+  if (isNaN(d)) return str;
+  const sec = Math.floor((Date.now() - d) / 1000);
+  if (sec < 60) return 'just now';
+  if (sec < 3600) return `${Math.floor(sec/60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
+  if (sec < 604800) return `${Math.floor(sec/86400)}d ago`;
+  return d.toLocaleDateString('en',{month:'short',day:'numeric'});
 }
 
 function isNewTabUrl(url) {
@@ -2018,8 +2372,205 @@ $('#saveSlackWorkspaceId').addEventListener('click', async () => {
   refreshService('slack');
 });
 
+// ────── Bulk Operations (Multi-Select) ──────
+const bulkSelection = {
+  selected: new Set(),
+  mode: null, // 'tabs' or 'pinned'
+
+  add(id) {
+    this.selected.add(id);
+    this.updateUI();
+  },
+
+  remove(id) {
+    this.selected.delete(id);
+    this.updateUI();
+  },
+
+  toggle(id) {
+    if (this.selected.has(id)) {
+      this.remove(id);
+    } else {
+      this.add(id);
+    }
+  },
+
+  clear() {
+    this.selected.clear();
+    this.mode = null;
+    this.updateUI();
+  },
+
+  updateUI() {
+    const bulkBar = document.getElementById('bulkActionsBar');
+    if (this.selected.size === 0) {
+      if (bulkBar) bulkBar.hidden = true;
+      // Uncheck all checkboxes
+      document.querySelectorAll('.tab-checkbox:checked').forEach(cb => cb.checked = false);
+    } else {
+      if (bulkBar) {
+        bulkBar.hidden = false;
+        const count = document.getElementById('bulkSelectionCount');
+        if (count) count.textContent = this.selected.size;
+      }
+    }
+  }
+};
+
+// ────── Undo/Redo System ──────
+class UndoManager {
+  constructor(maxSize = 20) {
+    this.stack = [];
+    this.maxSize = maxSize;
+  }
+
+  push(operation) {
+    this.stack.push({
+      type: operation.type,
+      data: operation.data,
+      timestamp: Date.now(),
+      undo: operation.undo
+    });
+
+    if (this.stack.length > this.maxSize) {
+      this.stack.shift();
+    }
+  }
+
+  async undo() {
+    if (this.stack.length === 0) {
+      showTempNotification('Nothing to undo');
+      return;
+    }
+
+    const operation = this.stack.pop();
+    try {
+      await operation.undo();
+      showTempNotification(`Undone: ${operation.type}`);
+    } catch (e) {
+      console.error('Undo failed:', e);
+      showTempNotification('Undo failed: ' + e.message);
+    }
+  }
+
+  canUndo() {
+    return this.stack.length > 0;
+  }
+
+  clear() {
+    this.stack = [];
+  }
+}
+
+const undoManager = new UndoManager();
+
+// Keyboard shortcut for undo (Cmd+Z or Ctrl+Z)
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undoManager.undo();
+  }
+});
+
+// ────── Auto-Archive ──────
+async function checkAutoArchive() {
+  if (!currentSpaceId || !currentWindowId) return;
+
+  try {
+    const { spaces = {} } = await chrome.storage.local.get('spaces');
+    const space = spaces[currentSpaceId];
+
+    // Check if auto-archive is enabled for this space
+    if (!space || !space.autoArchiveHours || space.autoArchiveHours <= 0) return;
+
+    const tabs = await chrome.tabs.query({ windowId: currentWindowId });
+    const now = Date.now();
+    const cutoffMs = space.autoArchiveHours * 60 * 60 * 1000;
+    const cutoff = now - cutoffMs;
+
+    // Find tabs that haven't been accessed recently
+    const toArchive = tabs.filter(t => {
+      if (!t.url || t.url.startsWith('chrome://') || t.url.startsWith('edge://')) return false;
+      // Pinned tabs and tabs in pinnedEntries are excluded
+      const isPinned = t.pinned || (space.pinnedEntries || []).some(e => e.url === t.url);
+      if (isPinned) return false;
+      // Check last accessed time
+      return t.lastAccessed && t.lastAccessed < cutoff;
+    });
+
+    if (toArchive.length === 0) return;
+
+    // Ensure "Archived" folder exists
+    if (!space.pinnedFolders) space.pinnedFolders = [];
+    let archivedFolder = space.pinnedFolders.find(f => f.name === 'Archived');
+
+    if (!archivedFolder) {
+      archivedFolder = {
+        name: 'Archived',
+        entryUrls: [],
+        collapsed: true
+      };
+      space.pinnedFolders.push(archivedFolder);
+    }
+
+    if (!space.pinnedEntries) space.pinnedEntries = [];
+
+    // Archive each tab
+    const archivedCount = toArchive.length;
+    for (const tab of toArchive) {
+      // Add to pinned entries if not already there
+      if (!space.pinnedEntries.some(e => e.url === tab.url)) {
+        space.pinnedEntries.push({
+          url: tab.url,
+          title: tab.title || tab.url,
+          favIconUrl: tab.favIconUrl || ''
+        });
+      }
+
+      // Add to archived folder
+      if (!archivedFolder.entryUrls.includes(tab.url)) {
+        archivedFolder.entryUrls.push(tab.url);
+      }
+
+      // Close the tab
+      try {
+        await chrome.tabs.remove(tab.id);
+      } catch (e) {
+        console.error('Failed to close archived tab:', e);
+      }
+    }
+
+    // Save changes
+    await chrome.storage.local.set({ spaces });
+    loadCurrentSpace();
+
+    // Show notification
+    showTempNotification(`Archived ${archivedCount} old tab${archivedCount !== 1 ? 's' : ''} (inactive for ${space.autoArchiveHours}h)`, 4000);
+
+    console.log(`[HOME] Auto-archived ${archivedCount} tabs to "${archivedFolder.name}" folder`);
+  } catch (e) {
+    console.error('[HOME] Auto-archive failed:', e);
+  }
+}
+
+// Run auto-archive check every hour
+setInterval(checkAutoArchive, 60 * 60 * 1000);
+
+// Also run on load (after 30s to let things settle)
+setTimeout(checkAutoArchive, 30 * 1000);
+
 // ────── Init ──────
 (async () => {
+  // Inject loading skeletons immediately so lists don't look empty during fetch
+  ['githubList','slackList','calendarList'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = renderSkeletonCards();
+  });
+
+  // Wire up section menu buttons
+  document.getElementById('tabsSectionMenuBtn')?.addEventListener('click', showTabsSectionMenu);
+  document.getElementById('pinnedSectionMenuBtn')?.addEventListener('click', showPinnedSectionMenu);
+
   const restored = await tryRestoreLastActiveWorkspace();
   if (!restored) {
     await loadCurrentSpace();
@@ -2491,6 +3042,198 @@ async function initImagePicker() {
 
 // Kick off image picker initialization
 initImagePicker();
+
+// ────── Context Menu Functions ──────
+function showTabEntryMenu(e, tabId, url) {
+  e.stopPropagation();
+  const existing = document.getElementById('tabEntryMenu');
+  if (existing) existing.remove();
+  const menu = document.createElement('div');
+  menu.id = 'tabEntryMenu';
+  menu.className = 'space-pill-menu';
+  menu.innerHTML = `
+    <button class="space-pill-menu__item" data-action="pin">📌 Pin tab</button>
+    <button class="space-pill-menu__item" data-action="new-window">Open in new window</button>
+    <div class="space-pill-menu__divider"></div>
+    <button class="space-pill-menu__item space-pill-menu__item--danger" data-action="close">Close tab</button>
+  `;
+  const rect = e.target.getBoundingClientRect();
+  menu.style.cssText = `position:fixed;left:${Math.min(rect.left, window.innerWidth-180)}px;top:${rect.bottom+2}px;z-index:1000`;
+  document.body.appendChild(menu);
+  const close = () => { menu.remove(); document.removeEventListener('click', close); };
+  document.addEventListener('click', close, { once: true });
+  menu.querySelector('[data-action="pin"]').addEventListener('click', e => { e.stopPropagation(); close(); pinTab(parseInt(tabId,10)); });
+  menu.querySelector('[data-action="new-window"]').addEventListener('click', e => { e.stopPropagation(); close(); chrome.tabs.create({ url }); });
+  menu.querySelector('[data-action="close"]').addEventListener('click', e => { e.stopPropagation(); close(); closeTab(parseInt(tabId,10)); });
+}
+
+function showPinnedEntryMenu(e, index, url) {
+  e.stopPropagation();
+  const existing = document.getElementById('pinnedEntryMenu');
+  if (existing) existing.remove();
+  const menu = document.createElement('div');
+  menu.id = 'pinnedEntryMenu';
+  menu.className = 'space-pill-menu';
+  menu.innerHTML = `
+    <button class="space-pill-menu__item" data-action="open">Open tab</button>
+    <div class="space-pill-menu__divider"></div>
+    <button class="space-pill-menu__item space-pill-menu__item--danger" data-action="unpin">Unpin</button>
+  `;
+  const rect = e.target.getBoundingClientRect();
+  menu.style.cssText = `position:fixed;left:${Math.min(rect.left, window.innerWidth-180)}px;top:${rect.bottom+2}px;z-index:1000`;
+  document.body.appendChild(menu);
+  const close = () => { menu.remove(); document.removeEventListener('click', close); };
+  document.addEventListener('click', close, { once: true });
+  menu.querySelector('[data-action="open"]').addEventListener('click', e => { e.stopPropagation(); close(); chrome.tabs.create({ url }); });
+  menu.querySelector('[data-action="unpin"]').addEventListener('click', e => { e.stopPropagation(); close(); unpinEntry(parseInt(index,10)); });
+}
+
+function showTabsSectionMenu(e) {
+  e.stopPropagation();
+  const existing = document.getElementById('tabsSectionMenu');
+  if (existing) existing.remove();
+  const menu = document.createElement('div');
+  menu.id = 'tabsSectionMenu';
+  menu.className = 'space-pill-menu';
+  menu.innerHTML = `
+    <button class="space-pill-menu__item" data-action="new-tab">New Tab</button>
+    <button class="space-pill-menu__item" data-action="new-folder">New Folder</button>
+    <div class="space-pill-menu__divider"></div>
+    <button class="space-pill-menu__item" data-action="select-all">Select All</button>
+  `;
+  const rect = e.target.getBoundingClientRect();
+  menu.style.cssText = `position:fixed;left:${Math.min(rect.left, window.innerWidth-180)}px;top:${rect.bottom+2}px;z-index:1000`;
+  document.body.appendChild(menu);
+  const close = () => { menu.remove(); document.removeEventListener('click', close); };
+  document.addEventListener('click', close, { once: true });
+  menu.querySelector('[data-action="new-tab"]').addEventListener('click', e => { e.stopPropagation(); close(); chrome.tabs.create({}); });
+  menu.querySelector('[data-action="new-folder"]').addEventListener('click', e => { e.stopPropagation(); close(); addFolderToActiveSpace && addFolderToActiveSpace(); });
+  menu.querySelector('[data-action="select-all"]').addEventListener('click', e => { e.stopPropagation(); close(); document.querySelectorAll('.tab-checkbox').forEach(cb => { cb.checked = true; cb.dispatchEvent(new Event('change')); }); });
+}
+
+function showPinnedSectionMenu(e) {
+  e.stopPropagation();
+  const existing = document.getElementById('pinnedSectionMenu');
+  if (existing) existing.remove();
+  const menu = document.createElement('div');
+  menu.id = 'pinnedSectionMenu';
+  menu.className = 'space-pill-menu';
+  menu.innerHTML = `
+    <button class="space-pill-menu__item" data-action="new-folder">New Folder</button>
+  `;
+  const rect = e.target.getBoundingClientRect();
+  menu.style.cssText = `position:fixed;left:${Math.min(rect.left, window.innerWidth-180)}px;top:${rect.bottom+2}px;z-index:1000`;
+  document.body.appendChild(menu);
+  const close = () => { menu.remove(); document.removeEventListener('click', close); };
+  document.addEventListener('click', close, { once: true });
+  menu.querySelector('[data-action="new-folder"]').addEventListener('click', e => { e.stopPropagation(); close(); addFolderToActiveSpace && addFolderToActiveSpace(); });
+}
+
+// ────── Tab Search ──────
+function setupTabSearch() {
+  const toggleBtn = document.getElementById('tabSearchToggleBtn');
+  if (!toggleBtn) return;
+
+  const container = document.querySelector('.space-section--tabs .space-section__label-row');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'tabSearchInput';
+  input.placeholder = 'Search tabs...';
+  input.className = 'tab-search-input';
+  input.hidden = true;
+
+  container.parentNode.insertBefore(input, container.nextSibling);
+
+  toggleBtn.addEventListener('click', () => {
+    const isOpen = !input.hidden;
+    input.hidden = isOpen;
+    if (!isOpen) { input.focus(); }
+    else { input.value = ''; filterTabs(''); }
+  });
+
+  input.addEventListener('keydown', e => { if (e.key === 'Escape') { input.hidden = true; input.value = ''; filterTabs(''); } });
+  input.addEventListener('input', e => filterTabs(e.target.value.toLowerCase()));
+}
+
+function filterTabs(query) {
+  document.querySelectorAll('.space-entry--tab').forEach(row => {
+    if (!query) { row.hidden = false; return; }
+    const title = (row.querySelector('.space-entry__title')?.textContent || '').toLowerCase();
+    const url = (row.dataset.url || '').toLowerCase();
+    row.hidden = !(title.includes(query) || url.includes(query));
+  });
+}
+
+// Set up tab search on load
+setupTabSearch();
+
+// ────── Bulk Actions Bar ──────
+function setupBulkActionsBar() {
+  const existing = document.getElementById('bulkActionsBar');
+  if (existing) return; // Already set up
+
+  const liveTabsSection = document.querySelector('.space-section--tabs');
+  if (!liveTabsSection) return;
+
+  const bulkBar = document.createElement('div');
+  bulkBar.id = 'bulkActionsBar';
+  bulkBar.className = 'bulk-actions-bar';
+  bulkBar.hidden = true;
+  bulkBar.innerHTML = `
+    <span class="bulk-count"><strong id="bulkSelectionCount">0</strong> selected</span>
+    <button type="button" class="btn btn--sm" id="bulkPinBtn">Pin</button>
+    <button type="button" class="btn btn--sm" id="bulkCloseBtn">Close</button>
+    <button type="button" class="btn btn--ghost btn--sm" id="bulkCancelBtn">Cancel</button>
+  `;
+
+  // Insert before tabs list
+  const searchInput = document.getElementById('tabSearchInput');
+  if (searchInput && searchInput.nextSibling) {
+    searchInput.parentNode.insertBefore(bulkBar, searchInput.nextSibling);
+  }
+
+  // Event handlers
+  document.getElementById('bulkPinBtn').addEventListener('click', async () => {
+    const tabIds = Array.from(bulkSelection.selected);
+    for (const id of tabIds) {
+      await pinTab(parseInt(id, 10), { skipRerender: true });
+    }
+    bulkSelection.clear();
+    loadCurrentSpace();
+    showTempNotification(`Pinned ${tabIds.length} tab${tabIds.length !== 1 ? 's' : ''}`);
+  });
+
+  document.getElementById('bulkCloseBtn').addEventListener('click', async () => {
+    const tabIds = Array.from(bulkSelection.selected);
+    for (const id of tabIds) {
+      await closeTab(parseInt(id, 10));
+    }
+    bulkSelection.clear();
+    showTempNotification(`Closed ${tabIds.length} tab${tabIds.length !== 1 ? 's' : ''}`);
+  });
+
+  document.getElementById('bulkCancelBtn').addEventListener('click', () => {
+    bulkSelection.clear();
+  });
+
+  // Checkbox change handler
+  document.addEventListener('change', (e) => {
+    if (e.target.classList.contains('tab-checkbox')) {
+      const tabId = e.target.dataset.tabId;
+      if (e.target.checked) {
+        bulkSelection.add(tabId);
+      } else {
+        bulkSelection.remove(tabId);
+      }
+    }
+  });
+}
+
+// Set up bulk actions bar on load
+setupBulkActionsBar();
+
+// Set up event delegation on load (prevents memory leaks)
+setupEventDelegation();
 
 // Listen for background messages (e.g., auto-updates, TABS_CHANGED)
 chrome.runtime.onMessage.addListener((msg) => {
